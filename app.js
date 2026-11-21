@@ -4,7 +4,7 @@
 const SUPABASE_URL = 'https://wwwrkbwycthgboqvljfy.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable__JjU5SFZFPvqLVbxpVXYJQ_v8s3CyNX';
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim());
 
 // GLOBAL STATE
 let currentAdmin = null;
@@ -36,8 +36,8 @@ async function checkAuthSession() {
     const { data: adminData } = await sb
       .from('admins')
       .select('*')
-      .eq('id', session.user.id)
-      .single();
+      .or(`id.eq.${session.user.id},email.ilike.${session.user.email}`)
+      .maybeSingle();
 
     if (adminData) {
       currentAdmin = adminData;
@@ -80,12 +80,14 @@ async function loginAdmin() {
   const { data: adminData, error: adminErr } = await sb
     .from('admins')
     .select('*')
-    .eq('id', data.user.id)
-    .single();
+    .or(`id.eq.${data.user.id},email.ilike.${email}`)
+    .maybeSingle();
 
   if (adminErr || !adminData) {
     await sb.auth.signOut();
-    errEl.textContent = 'Access denied: Admin record not found.';
+    errEl.textContent = adminErr
+      ? `DB Error: ${adminErr.message}`
+      : `Record not found for ${email} on URL: ${SUPABASE_URL}`;
     errEl.classList.remove('hidden');
     return;
   }
@@ -163,7 +165,7 @@ async function renderManageAdmins() {
     <div class="card">
       <h2>🛡️ Manage Admins (Super Admin Only)</h2>
       <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:10px;">
-        Naya Admin ya Super Admin jodne ke liye pehle Supabase Auth me user banayein ya yahan se account create karein:
+        Naya Admin ya Super Admin jodne ke liye yahan details bharein:
       </p>
       <div class="grid-2">
         <input type="text" id="newAdminName" placeholder="Admin Name (e.g. Rahul)" />
@@ -205,8 +207,7 @@ async function createNewAdmin() {
     return;
   }
 
-  // Secondary client taaki current Super Admin session logout na ho
-  const tempClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const tempClient = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim(), {
     auth: { persistSession: false }
   });
 
@@ -355,7 +356,6 @@ async function openPlayerCareer(playerId) {
   const formats = stats || [];
   const overHeaders = formats.map(f => `<th>${f.overs_format} Ov</th>`).join('');
 
-  // 16 BATTING ROWS
   const batRows = [
     { label: 'Matches', fn: s => s.bat_matches },
     { label: 'Innings', fn: s => s.bat_innings },
@@ -378,7 +378,6 @@ async function openPlayerCareer(playerId) {
     { label: 'Boundary %', fn: s => s.runs > 0 ? ((((s.fours * 4) + (s.sixes * 6)) / s.runs) * 100).toFixed(1) + '%' : '0%' }
   ];
 
-  // 14 BOWLING ROWS
   const bowlRows = [
     { label: 'Matches', fn: s => s.bowl_matches },
     { label: 'Innings', fn: s => s.bowl_innings },
@@ -531,9 +530,6 @@ function removeSquadPlayer(teamNum, playerId) {
 }
 
 function openPlayerSelector(teamNum) {
-  const otherList = teamNum === 1 ? setupState.team2Players : setupState.team1Players;
-  const currentList = teamNum === 1 ? setupState.team1Players : setupState.team2Players;
-
   document.getElementById('popupContent').innerHTML = `
     <div class="row-between">
       <h3>Select Players for ${teamNum === 1 ? (setupState.team1Name || 'Team 1') : (setupState.team2Name || 'Team 2')}</h3>
@@ -635,7 +631,6 @@ function proceedToToss() {
     return alert('Dono teams me kam se kam 1-1 khiladi chunein.');
   }
 
-  // Mark captains
   const t1Final = setupState.team1Players.map(p => ({ ...p, is_captain: p.id === setupState.team1Captain }));
   const t2Final = setupState.team2Players.map(p => ({ ...p, is_captain: p.id === setupState.team2Captain }));
 
@@ -823,7 +818,6 @@ function renderLiveScoringScreen() {
       <div class="ball-timeline">${recentBalls || '<span style="color:#64748b;">Ready for 1st ball...</span>'}</div>
     </div>
 
-    <!-- CREASE & BOWLER -->
     <div class="grid-2">
       <div class="card">
         <div class="row-between">
@@ -846,7 +840,6 @@ function renderLiveScoringScreen() {
       </div>
     </div>
 
-    <!-- BALL-BY-BALL DROPDOWN CONTROL -->
     <div class="card">
       <div class="row-between">
         <h3>🎯 Next Ball: Over ${Math.floor(inn.legalBalls / 6)}.${(inn.legalBalls % 6) + 1}</h3>
@@ -961,7 +954,7 @@ async function processBallDelivery(outcome, wicketInfo) {
   let isLegal = true;
   let totalRunsAdded = 0;
   let batRuns = 0;
-  let runningRuns = 0; // Strike rotation ke liye
+  let runningRuns = 0;
 
   if (outcome === 'WICKET') {
     inn.wickets += 1;
@@ -1023,12 +1016,10 @@ async function processBallDelivery(outcome, wicketInfo) {
     bowler.balls += 1;
   }
 
-  // 1. Odd runs par Strike Rotation
   if (runningRuns % 2 === 1 && inn.nonStrikerId) {
     [inn.strikerId, inn.nonStrikerId] = [inn.nonStrikerId, inn.strikerId];
   }
 
-  // Check if 2nd Innings Target Chased
   if (activeMatch.scorecard.currentInnings === 2) {
     const target = activeMatch.scorecard.innings1.runs + 1;
     if (inn.runs >= target) {
@@ -1037,12 +1028,10 @@ async function processBallDelivery(outcome, wicketInfo) {
     }
   }
 
-  // Check if All Out (Gully cricket: agar 1 hi player tha to 1 wicket par out, warna squad.length - 1)
   const maxWickets = inn.batSquad.length > 1 ? inn.batSquad.length - 1 : 1;
   const maxBalls = activeMatch.total_overs * 6;
   const isOverComplete = isLegal && (inn.legalBalls % 6 === 0);
 
-  // Over complete hone par Maiden check & End-of-Over Strike Rotation
   if (isOverComplete) {
     if (bowler.currentOverRuns === 0) bowler.maidens += 1;
     bowler.currentOverRuns = 0;
@@ -1052,7 +1041,6 @@ async function processBallDelivery(outcome, wicketInfo) {
     }
   }
 
-  // Check Innings End (All Out or All Overs Completed)
   if (inn.wickets >= maxWickets || inn.legalBalls >= maxBalls) {
     await syncLiveMatchToDB();
     if (activeMatch.scorecard.currentInnings === 1) {
@@ -1068,14 +1056,12 @@ async function processBallDelivery(outcome, wicketInfo) {
     return;
   }
 
-  // Agar wicket gira hai (aur innings bachi hai) -> New Batter chunein
   if (outcome === 'WICKET') {
     await syncLiveMatchToDB();
     openNewBatterModal(isOverComplete);
     return;
   }
 
-  // Agar Over khatam hua hai -> Next Over Bowler chunein
   if (isOverComplete) {
     await syncLiveMatchToDB();
     openNextBowlerModal();
@@ -1115,7 +1101,6 @@ async function confirmNewBatter(needNewBowlerAfter) {
   const p = inn.batSquad.find(x => x.id === nextId);
 
   inn.batters.push({ id: p.id, name: p.name, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' });
-  // Out hone wale batter ki jagah naya batter aayega (agar over khatam hua tha to wo non-striker par ho sakta hai)
   const outBatter = inn.batters.find(b => b.out && (b.id === inn.strikerId || b.id === inn.nonStrikerId));
   if (outBatter && inn.strikerId === outBatter.id) inn.strikerId = p.id;
   else if (outBatter && inn.nonStrikerId === outBatter.id) inn.nonStrikerId = p.id;
@@ -1188,13 +1173,9 @@ async function finishAndDeclareMatch() {
     winnerTeamName = 'TIE';
   }
 
-  // AI Player of the Match Calculation
   const potm = calculateAIPlayerOfMatch(i1, i2, winnerTeamName);
-
-  // Update Career Stats in player_format_stats for this Over Format
   await updateAllPlayersCareerStats(activeMatch.total_overs, i1, i2);
 
-  // Save Completed Match
   await sb.from('matches').update({
     status: 'completed',
     scorecard: activeMatch.scorecard,
@@ -1239,7 +1220,7 @@ function calculateAIPlayerOfMatch(i1, i2, winnerTeam) {
 
   let best = { name: 'N/A', points: -1, summary: '' };
   Object.values(pointsMap).forEach(p => {
-    if (p.team === winnerTeam) p.points *= 1.15; // Winner bonus
+    if (p.team === winnerTeam) p.points *= 1.15;
     if (p.points > best.points) {
       best = { id: p.id, name: p.name, points: Math.round(p.points), summary: p.notes.join(' & ') };
     }
@@ -1270,7 +1251,6 @@ async function updateAllPlayersCareerStats(oversFormat, i1, i2) {
       row = inserted;
     }
 
-    // Aggregate batting & bowling across both innings (supports Common Player playing in both!)
     let playedBatMatch = false;
     let playedBowlMatch = false;
 
