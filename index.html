@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cricket Academy — Live Scoring & Stats</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <header class="top-bar">
+    <div class="left-area">
+      <button id="menuBtn" class="icon-btn hidden" onclick="toggleDrawer()">☰</button>
+      <span class="brand" onclick="goHome()">🏏 Cricket Academy</span>
+    </div>
+    <div id="welcomeText" class="center-welcome hidden"></div>
+    <div class="right-area">
+      <button id="openLoginBtn" class="btn-primary" onclick="openModal('loginModal')">Admin Login</button>
+      <button id="logoutBtn" class="btn-danger hidden" onclick="logoutAdmin()">Logout</button>
+    </div>
+  </header>
+
+  <!-- ADMIN HAMBURGER DRAWER -->
+  <aside id="adminDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <span>Admin Menu</span>
+      <button class="close-x" onclick="toggleDrawer()">✕</button>
+    </div>
+    <nav class="drawer-links">
+      <button onclick="navigateAdmin('addPlayer')">➕ Add Player</button>
+      <button onclick="navigateAdmin('startMatch')">🏏 Start Live Match / Live</button>
+      <button onclick="navigateAdmin('recentMatches')">📜 Recent Matches</button>
+      <button id="manageAdminsLink" class="hidden" onclick="navigateAdmin('manageAdmins')">🛡️ Manage Admins</button>
+      <button onclick="navigateAdmin('changePassword')">🔑 Change Password</button>
+    </nav>
+  </aside>
+
+  <!-- PUBLIC NAVIGATION TABS -->
+  <nav id="publicNav" class="sub-nav">
+    <button class="tab-btn active" id="tab-live" onclick="showPublicTab('live')">🔴 Live Matches</button>
+    <button class="tab-btn" id="tab-players" onclick="showPublicTab('players')">📊 Player Stats</button>
+    <button class="tab-btn" id="tab-recent" onclick="showPublicTab('recent')">🏆 Recent Matches</button>
+  </nav>
+
+  <!-- MAIN DYNAMIC CONTAINER -->
+  <main id="appContainer" class="container"></main>
+
+  <!-- ADMIN LOGIN MODAL -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Admin Login</h3>
+      <input type="email" id="loginEmail" placeholder="Admin Email" />
+      <input type="password" id="loginPassword" placeholder="Password" />
+      <p id="loginError" class="error-text hidden"></p>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
+        <button class="btn-primary" onclick="loginAdmin()">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENERIC POPUP MODAL (Player Selection, Wicket, New Bowler, Career Stats, Scorecard) -->
+  <div id="popupModal" class="modal hidden">
+    <div class="modal-box modal-large" id="popupContent"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
