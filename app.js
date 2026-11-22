@@ -13,7 +13,7 @@ let setupState = {
   team1Name: '',
   team2Name: '',
   overs: 6,
-  team1Players: [], // {id, name, is_captain, is_common}
+  team1Players: [],
   team2Players: [],
   team1Captain: '',
   team2Captain: ''
@@ -353,7 +353,7 @@ async function openPlayerCareer(playerId) {
     .eq('player_id', playerId)
     .order('overs_format', { ascending: true });
 
-  const formats = stats || [];
+  const formats = (stats || []).filter(f => f.bat_matches > 0 || f.bowl_matches > 0);
   const overHeaders = formats.map(f => `<th>${f.overs_format} Ov</th>`).join('');
 
   const batRows = [
@@ -396,7 +396,7 @@ async function openPlayerCareer(playerId) {
   ];
 
   const renderTable = (rows) => formats.length === 0
-    ? `<p style="color:#94a3b8; margin:8px 0;">Abhi tak koi match data nahi hai (All stats 0).</p>`
+    ? `<p style="color:#94a3b8; margin:8px 0;">Abhi tak koi match data nahi hai (All stats clear / 0).</p>`
     : `<div class="stats-table-wrap">
         <table class="stats-table">
           <thead><tr><th>Statistic</th>${overHeaders}</tr></thead>
@@ -775,7 +775,7 @@ async function beginInnings(inningsNum, batTeam, bowlTeam, tossDecision) {
 }
 
 // =========================================================
-// 7. BALL-BY-BALL LIVE SCORING ENGINE
+// 7. BALL-BY-BALL LIVE SCORING ENGINE (NO EXTRA 1 RUN ON WD/NB)
 // =========================================================
 function getCurrentInnings() {
   return activeMatch.scorecard.currentInnings === 1
@@ -855,15 +855,15 @@ function renderLiveScoringScreen() {
         <option value="4">4 (Chauka / Four)</option>
         <option value="5">5 Runs</option>
         <option value="6">6 (Chhakka / Six)</option>
-        <option value="WD">Wide (WD + 1)</option>
-        <option value="WD+1">Wide + 1 Run (2 Runs)</option>
-        <option value="WD+2">Wide + 2 Runs (3 Runs)</option>
-        <option value="WD+4">Wide + 4 Runs (5 Runs)</option>
-        <option value="NB">No Ball (NB + 1)</option>
-        <option value="NB+1">No Ball + 1 Run</option>
-        <option value="NB+2">No Ball + 2 Runs</option>
-        <option value="NB+4">No Ball + 4 Runs</option>
-        <option value="NB+6">No Ball + 6 Runs</option>
+        <option value="WD">Wide (0 Run • Re-ball)</option>
+        <option value="WD+1">Wide + 1 Run (1 Run)</option>
+        <option value="WD+2">Wide + 2 Runs (2 Runs)</option>
+        <option value="WD+4">Wide + 4 Runs (4 Runs)</option>
+        <option value="NB">No Ball (0 Run • Re-ball)</option>
+        <option value="NB+1">No Ball + 1 Run (1 Run)</option>
+        <option value="NB+2">No Ball + 2 Runs (2 Runs)</option>
+        <option value="NB+4">No Ball + 4 Runs (4 Runs)</option>
+        <option value="NB+6">No Ball + 6 Runs (6 Runs)</option>
         <option value="B1">Bye 1 Run</option>
         <option value="B2">Bye 2 Runs</option>
         <option value="LB1">Leg Bye 1 Run</option>
@@ -966,25 +966,26 @@ async function processBallDelivery(outcome, wicketInfo) {
     bowler.wickets += 1;
     inn.ballsHistory.push('W');
   } else if (outcome.startsWith('WD')) {
+    // Gully Rule: Wide par koi extra 1 run nahi judega, sirf re-ball hogi + bhaage hue runs judenge
     isLegal = false;
     const extraRun = outcome.includes('+') ? parseInt(outcome.split('+')[1]) : 0;
-    totalRunsAdded = 1 + extraRun;
+    totalRunsAdded = extraRun;
     runningRuns = extraRun;
-    inn.extras.wd += totalRunsAdded;
+    inn.extras.wd += extraRun;
     bowler.wides += 1;
-    bowler.runs += totalRunsAdded;
-    bowler.currentOverRuns += totalRunsAdded;
+    bowler.runs += extraRun;
+    bowler.currentOverRuns += extraRun;
     inn.ballsHistory.push(extraRun > 0 ? `WD+${extraRun}` : 'WD');
   } else if (outcome.startsWith('NB')) {
+    // Gully Rule: No Ball par koi extra 1 run nahi judega, sirf re-ball hogi + batter ke runs judenge
     isLegal = false;
     const extraRun = outcome.includes('+') ? parseInt(outcome.split('+')[1]) : 0;
-    totalRunsAdded = 1 + extraRun;
+    totalRunsAdded = extraRun;
     batRuns = extraRun;
     runningRuns = extraRun;
-    inn.extras.nb += 1;
     bowler.noBalls += 1;
-    bowler.runs += totalRunsAdded;
-    bowler.currentOverRuns += totalRunsAdded;
+    bowler.runs += extraRun;
+    bowler.currentOverRuns += extraRun;
     striker.runs += batRuns;
     if (batRuns === 4) striker.fours += 1;
     if (batRuns === 6) striker.sixes += 1;
@@ -1304,7 +1305,7 @@ async function updateAllPlayersCareerStats(oversFormat, i1, i2) {
 }
 
 // =========================================================
-// 9. PUBLIC LIVE VIEW & RECENT MATCHES (WITH SCORECARD)
+// 9. PUBLIC LIVE VIEW & RECENT MATCHES (SUPER ADMIN DELETE + STATS CLEAR)
 // =========================================================
 async function renderPublicLiveMatches() {
   const container = document.getElementById('appContainer');
@@ -1343,6 +1344,8 @@ async function renderRecentMatches(isAdminView) {
     return;
   }
 
+  const isSuperAdmin = currentAdmin && currentAdmin.role === 'super_admin';
+
   container.innerHTML = matches.map(m => `
     <div class="card">
       <div class="row-between">
@@ -1354,7 +1357,7 @@ async function renderRecentMatches(isAdminView) {
         </div>
         <div style="display:flex; gap:8px;">
           <button class="btn-secondary btn-sm" onclick='openFullScorecard(${JSON.stringify(m)})'>Scorecard</button>
-          ${(isAdminView && currentAdmin) ? `<button class="btn-danger btn-sm" onclick="deleteCompletedMatch('${m.id}')">Delete</button>` : ''}
+          ${isSuperAdmin ? `<button class="btn-danger btn-sm" onclick="deleteCompletedMatch('${m.id}')">Delete</button>` : ''}
         </div>
       </div>
     </div>
@@ -1362,10 +1365,131 @@ async function renderRecentMatches(isAdminView) {
 }
 
 async function deleteCompletedMatch(matchId) {
-  if (!confirm('Kya aap is match ko permanently delete karna chahte hain?')) return;
-  const { error } = await sb.from('matches').delete().eq('id', matchId);
-  if (error) alert(error.message);
-  else renderRecentMatches(true);
+  if (!currentAdmin || currentAdmin.role !== 'super_admin') {
+    alert('Sirf Super Admin hi match delete kar sakta hai.');
+    return;
+  }
+  if (!confirm('Kya aap is match ko delete karna chahte hain? Is match ke saare player stats bhi clear ho jayenge!')) return;
+
+  const { data: match, error: fetchErr } = await sb.from('matches').select('*').eq('id', matchId).single();
+  if (fetchErr || !match) {
+    alert('Match fetch failed: ' + (fetchErr ? fetchErr.message : 'Not found'));
+    return;
+  }
+
+  const { error: delErr } = await sb.from('matches').delete().eq('id', matchId);
+  if (delErr) {
+    alert(delErr.message);
+    return;
+  }
+
+  await revertPlayersCareerStatsForDeletedMatch(match);
+
+  alert('Match delete ho gaya aur sabhi khiladiyon ke stats clear/update ho gaye!');
+  renderRecentMatches(Boolean(currentAdmin));
+}
+
+async function revertPlayersCareerStatsForDeletedMatch(deletedMatch) {
+  const oversFormat = deletedMatch.total_overs;
+  const i1 = deletedMatch.scorecard.innings1;
+  const i2 = deletedMatch.scorecard.innings2;
+  if (!i1 || !i2) return;
+
+  const { data: remainingMatches } = await sb
+    .from('matches')
+    .select('*')
+    .eq('status', 'completed')
+    .eq('total_overs', oversFormat);
+
+  const allSquadIds = new Set([
+    ...i1.batSquad.map(p => p.id),
+    ...i1.bowlSquad.map(p => p.id)
+  ]);
+
+  for (const playerId of allSquadIds) {
+    const { data: row } = await sb
+      .from('player_format_stats')
+      .select('*')
+      .eq('player_id', playerId)
+      .eq('overs_format', oversFormat)
+      .maybeSingle();
+
+    if (!row) continue;
+
+    let playedBatMatch = false;
+    let playedBowlMatch = false;
+
+    [i1, i2].forEach(inn => {
+      if (inn.batSquad.some(p => p.id === playerId)) playedBatMatch = true;
+      if (inn.bowlSquad.some(p => p.id === playerId)) playedBowlMatch = true;
+
+      const bat = inn.batters.find(b => b.id === playerId);
+      if (bat && (bat.balls > 0 || bat.out)) {
+        row.bat_innings = Math.max(0, row.bat_innings - 1);
+        if (!bat.out) row.not_outs = Math.max(0, row.not_outs - 1);
+        row.runs = Math.max(0, row.runs - bat.runs);
+        row.balls_faced = Math.max(0, row.balls_faced - bat.balls);
+        row.fours = Math.max(0, row.fours - bat.fours);
+        row.sixes = Math.max(0, row.sixes - bat.sixes);
+        if (bat.runs === 0 && bat.out) row.ducks = Math.max(0, row.ducks - 1);
+        if (bat.runs >= 100) row.hundreds = Math.max(0, row.hundreds - 1);
+        else if (bat.runs >= 50) row.fifties = Math.max(0, row.fifties - 1);
+        else if (bat.runs >= 30) row.thirties = Math.max(0, row.thirties - 1);
+      }
+
+      const bowl = inn.bowlers.find(b => b.id === playerId);
+      if (bowl && bowl.balls > 0) {
+        row.bowl_innings = Math.max(0, row.bowl_innings - 1);
+        row.balls_bowled = Math.max(0, row.balls_bowled - bowl.balls);
+        row.maidens = Math.max(0, row.maidens - bowl.maidens);
+        row.runs_conceded = Math.max(0, row.runs_conceded - bowl.runs);
+        row.wickets = Math.max(0, row.wickets - bowl.wickets);
+        row.wides = Math.max(0, row.wides - bowl.wides);
+        row.no_balls = Math.max(0, row.no_balls - bowl.noBalls);
+        if (bowl.wickets >= 5) row.five_wickets = Math.max(0, row.five_wickets - 1);
+        else if (bowl.wickets >= 3) row.three_wickets = Math.max(0, row.three_wickets - 1);
+      }
+    });
+
+    if (playedBatMatch) row.bat_matches = Math.max(0, row.bat_matches - 1);
+    if (playedBowlMatch) row.bowl_matches = Math.max(0, row.bowl_matches - 1);
+
+    if (row.bat_matches === 0 && row.bowl_matches === 0) {
+      await sb.from('player_format_stats').delete().eq('id', row.id);
+    } else {
+      let maxHs = 0;
+      let maxHsNo = false;
+      let bestW = 0;
+      let bestR = 999;
+
+      (remainingMatches || []).forEach(rm => {
+        [rm.scorecard.innings1, rm.scorecard.innings2].forEach(inn => {
+          if (!inn) return;
+          const b = inn.batters.find(x => x.id === playerId);
+          if (b && (b.balls > 0 || b.out)) {
+            if (b.runs > maxHs || (b.runs === maxHs && !b.out)) {
+              maxHs = b.runs;
+              maxHsNo = !b.out;
+            }
+          }
+          const bw = inn.bowlers.find(x => x.id === playerId);
+          if (bw && bw.balls > 0 && bw.wickets > 0) {
+            if (bw.wickets > bestW || (bw.wickets === bestW && bw.runs < bestR)) {
+              bestW = bw.wickets;
+              bestR = bw.runs;
+            }
+          }
+        });
+      });
+
+      row.highest_score = maxHs;
+      row.highest_not_out = maxHsNo;
+      row.best_wickets = bestW;
+      row.best_runs = bestR;
+
+      await sb.from('player_format_stats').update(row).eq('id', row.id);
+    }
+  }
 }
 
 function openFullScorecard(match) {
