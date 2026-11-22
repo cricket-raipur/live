@@ -2,7 +2,7 @@
 // SUPABASE PROJECT URL AUR ANON PUBLIC KEY
 // =========================================================
 const SUPABASE_URL = 'https://wwwrkbwycthgboqvljfy.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable__JjuSSFZFPVqLVbxpVXYJQ_V8s3CyNX';
+const SUPABASE_ANON_KEY = 'sb_publishable__JjU5SFZFPvqLVbxpVXYJQ_v8s3CyNX';
 
 const sb = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_ANON_KEY.trim());
 
