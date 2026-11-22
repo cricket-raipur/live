@@ -1,71 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cricket Academy — Live Scoring & Stats</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Academy Live Scoring</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Font & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Supabase JS Library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <!-- TOP HEADER -->
-  <header class="top-bar">
-    <div class="left-area">
-      <button id="menuBtn" class="icon-btn hidden" onclick="toggleDrawer()">☰</button>
-      <span class="brand" onclick="goHome()">🏏 Cricket Academy</span>
+  <!-- HEADER BAR -->
+  <header class="navbar">
+    <div class="nav-brand" onclick="goHome()">
+      <span class="brand-logo">🏏</span>
+      <div>
+        <h1>RAIPUR ACADEMY</h1>
+        <p>Live Scoring & Career Stats</p>
+      </div>
     </div>
-    <div id="welcomeText" class="center-welcome hidden"></div>
-    <div class="right-area">
-      <button id="openLoginBtn" class="btn-primary" onclick="openModal('loginModal')">Admin Login</button>
-      <button id="logoutBtn" class="btn-danger hidden" onclick="logoutAdmin()">Logout</button>
+    <div class="nav-actions">
+      <button id="menuBtn" class="btn-icon hidden" onclick="toggleDrawer()">☰</button>
+      <button id="openLoginBtn" class="btn-primary btn-sm" onclick="openModal('loginModal')">Admin Login</button>
+      <span id="welcomeText" class="user-welcome hidden"></span>
+      <button id="logoutBtn" class="btn-secondary btn-sm hidden" onclick="logoutAdmin()">Logout</button>
     </div>
   </header>
 
-  <!-- ADMIN HAMBURGER DRAWER -->
+  <!-- SIDE DRAWER (ADMIN ONLY NAVIGATION) -->
   <aside id="adminDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <span>Admin Menu</span>
-      <button class="close-x" onclick="toggleDrawer()">✕</button>
+      <h3>Admin Menu</h3>
+      <button class="btn-close" onclick="toggleDrawer()">✕</button>
     </div>
-    <nav class="drawer-links">
-      <button onclick="navigateAdmin('addPlayer')">➕ Add Player</button>
-      <button onclick="navigateAdmin('startMatch')">🏏 Start Live Match / Live</button>
-      <button onclick="navigateAdmin('recentMatches')">📜 Recent Matches</button>
+    <nav class="drawer-nav">
+      <button onclick="navigateAdmin('startMatch')">🏏 Start Live Match</button>
+      <button onclick="navigateAdmin('addPlayer')">👤 Add New Player</button>
+      <button onclick="navigateAdmin('recentMatches')">🕒 Manage Matches (Recent)</button>
       <button id="manageAdminsLink" class="hidden" onclick="navigateAdmin('manageAdmins')">🛡️ Manage Admins</button>
       <button onclick="navigateAdmin('changePassword')">🔑 Change Password</button>
+      <hr style="border-color:#1e293b; margin:10px 0;">
+      <button onclick="goHome()" style="background:transparent; color:#94a3b8;">🏠 Back to Public View</button>
     </nav>
   </aside>
 
-  <!-- PUBLIC NAVIGATION TABS -->
-  <nav id="publicNav" class="sub-nav">
-    <button class="tab-btn active" id="tab-live" onclick="showPublicTab('live')">🔴 Live Matches</button>
-    <button class="tab-btn" id="tab-players" onclick="showPublicTab('players')">📊 Player Stats</button>
-    <button class="tab-btn" id="tab-recent" onclick="showPublicTab('recent')">🏆 Recent Matches</button>
-  </nav>
+  <!-- MAIN APP CONTAINER -->
+  <main class="container">
+    
+    <!-- Public Navigation Tabs -->
+    <div id="publicNav" class="tabs-nav">
+      <button id="tab-live" class="tab-btn active" onclick="showPublicTab('live')">🔴 LIVE</button>
+      <button id="tab-recent" class="tab-btn" onclick="showPublicTab('recent')">🕒 Recent (Top 5)</button>
+      <button id="tab-history" class="tab-btn" onclick="showPublicTab('history')">📜 Match History</button>
+      <button id="tab-players" class="tab-btn" onclick="showPublicTab('players')">📊 Players Stats</button>
+    </div>
 
-  <!-- MAIN DYNAMIC CONTAINER -->
-  <main id="appContainer" class="container"></main>
+    <!-- Content Area (Injects Dynamically) -->
+    <div id="appContainer"></div>
+
+  </main>
+
+  <!-- ======================== MODALS & POPUPS ======================== -->
 
   <!-- ADMIN LOGIN MODAL -->
-  <div id="loginModal" class="modal hidden">
-    <div class="modal-box">
+  <div id="loginModal" class="modal-overlay hidden">
+    <div class="modal-card">
       <h3>Admin Login</h3>
-      <input type="email" id="loginEmail" placeholder="Admin Email" />
-      <input type="password" id="loginPassword" placeholder="Password" />
-      <p id="loginError" class="error-text hidden"></p>
+      <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:12px;">Only authorized scorers and super admins can login.</p>
+      
+      <label>Email Address</label>
+      <input type="email" id="loginEmail" placeholder="Enter Admin Email" />
+      
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter Password" />
+      
+      <p id="loginError" class="err-text hidden"></p>
+
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
-        <button class="btn-primary" onclick="loginAdmin()">Login</button>
+        <button class="btn-success" onclick="loginAdmin()">Login</button>
       </div>
     </div>
   </div>
 
-  <!-- GENERIC POPUP MODAL (Player Selection, Wicket, New Bowler, Career Stats, Scorecard) -->
-  <div id="popupModal" class="modal hidden">
-    <div class="modal-box modal-large" id="popupContent"></div>
+  <!-- EDIT PLAYER MODAL (NEW) -->
+  <div id="editPlayerModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3>✏️ Edit Player Details</h3>
+      <input type="hidden" id="editPlayerId">
+      
+      <label>Full Name *</label>
+      <input type="text" id="editPlayerName" placeholder="e.g. Virat Kumar" />
+      
+      <label>Nickname</label>
+      <input type="text" id="editPlayerNick" placeholder="e.g. Cheeku" />
+      
+      <label>Role</label>
+      <input type="text" id="editPlayerRole" placeholder="e.g. All-Rounder" />
+      
+      <label>Change Player Photo (Optional)</label>
+      <input type="file" id="editPlayerPhotoFile" accept="image/*" />
+      <div id="editPlayerPhotoPreview" style="margin-top:10px;"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('editPlayerModal')">Cancel</button>
+        <button class="btn-success" onclick="saveEditedPlayer()">Save Changes ✓</button>
+      </div>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- GENERIC DYNAMIC POPUP MODAL (For Scorecard, Toss, Selector) -->
+  <div id="popupModal" class="modal-overlay hidden">
+    <div class="modal-card" id="popupContent"></div>
+  </div>
+
+  <!-- PROFESSIONAL FOOTER SECTION -->
+  <footer id="websiteFooter" class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-section">
+        <h4>ABOUT ACADEMY</h4>
+        <p>Official Live Cricket Scoring & Career Statistics Portal for Raipur Cricket. Helping players track and improve their cricket career.</p>
+      </div>
+      <div class="footer-section">
+        <h4>QUICK LINKS</h4>
+        <div class="footer-links">
+          <a href="#" onclick="showPublicTab('live')">🔴 Live Match</a>
+          <a href="#" onclick="showPublicTab('recent')">🕒 Recent Matches</a>
+          <a href="#" onclick="showPublicTab('history')">📜 Match History</a>
+          <a href="#" onclick="showPublicTab('players')">📊 Players Stats</a>
+        </div>
+      </div>
+      <div class="footer-section">
+        <h4>CONTACT US</h4>
+        <p>📞 Phone: +91 6204474248</p>
+        <p>✉️ Email: ashvintyadav5@gmail.com</p>
+        <p>📍 Location: Raipur, ujiarpur , India</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 Raipur Cricket. All Rights Are Reserved.</p>
+      <p style="font-size:0.75rem; color:#64748b; margin-top:4px;">Designed & Managed by Ashvint Yadav.</p>
+    </div>
+  </footer>
+
 </body>
 </html>
