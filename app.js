@@ -2,7 +2,7 @@
 // 1. SUPABASE CONFIGURATION & GLOBAL STATE
 // ==========================================
 const SUPABASE_URL = 'https://wwwrkbwycthgboqvljfy.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3d3JrYnd5Y3RoZ2JvcXZsamZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMTk1NDAsImV4cCI6MjA5MDU5NTU0MH0.2nN0679F4zA2eG54K6f9A9h8U_R2T4K1o8iX2H6qL4s';
+const SUPABASE_ANON_KEY = 'sb_publishable__JjU5SFZFPvqLVbxpVXYJQ_v8s3CyNX;
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
