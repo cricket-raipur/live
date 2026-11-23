@@ -16,26 +16,122 @@ let liveSyncInterval = null;
 let currentPublicTab = 'live';
 
 // ==========================================
-// 2. INITIALIZATION, MODALS & AUTHENTICATION
+// 2. INITIALIZATION, SMART MODALS & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
+    ensureDynamicModalExists();
     await checkAuthSession();
     await loadAllInitialData();
     startAutoSync();
 });
 
+// Ensures popup modal always works even if index.html IDs differ
+function ensureDynamicModalExists() {
+    if (!document.getElementById('smartDynamicModal')) {
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'smartDynamicModal';
+        modalDiv.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center; padding:16px;';
+        modalDiv.innerHTML = `
+            <div id="smartDynamicContent" style="background:#1e293b; color:#f8fafc; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; border-radius:12px; padding:20px; border:1px solid #334155; box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);"></div>
+        `;
+        document.body.appendChild(modalDiv);
+    }
+}
+
+function showSmartPopup(htmlContent) {
+    ensureDynamicModalExists();
+    document.getElementById('smartDynamicContent').innerHTML = htmlContent;
+    document.getElementById('smartDynamicModal').style.display = 'flex';
+}
+
+function closeSmartPopup() {
+    const el = document.getElementById('smartDynamicModal');
+    if (el) el.style.display = 'none';
+    const legacy = document.getElementById('popupModal');
+    if (legacy) legacy.style.display = 'none';
+    const loginLegacy = document.getElementById('loginModal');
+    if (loginLegacy) loginLegacy.style.display = 'none';
+}
+
+// Universal Modal Open/Close Handlers (Fixes all index.html button mismatches)
 function openModal(modalId) {
+    if (modalId === 'loginModal') {
+        openLoginModal();
+        return;
+    }
     const el = document.getElementById(modalId);
     if (el) el.style.display = 'flex';
 }
 
 function closeModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.style.display = 'none';
+    closeSmartPopup();
+    if (modalId) {
+        const el = document.getElementById(modalId);
+        if (el) el.style.display = 'none';
+    }
 }
 
 function openLoginModal() {
-    openModal('loginModal');
+    showSmartPopup(`
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">🔐 Admin Login</h3>
+            <button type="button" onclick="closeSmartPopup()" style="background:#334155; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">✕</button>
+        </div>
+        <form onsubmit="handleAdminLogin(event)" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+                <label style="display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:4px;">Admin Email</label>
+                <input type="email" id="smartLoginEmail" required placeholder="admin@example.com" style="width:100%; padding:10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:4px;">Password</label>
+                <input type="password" id="smartLoginPassword" required placeholder="••••••••" style="width:100%; padding:10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;">
+            </div>
+            <div id="loginErrorMsg" style="color:#f87171; font-size:0.85rem; display:none;"></div>
+            <button type="submit" id="smartLoginSubmitBtn" style="background:#2563eb; color:#fff; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Login Now</button>
+        </form>
+    `);
+}
+
+async function handleAdminLogin(e) {
+    if (e) e.preventDefault();
+    const emailEl = document.getElementById('smartLoginEmail') || document.getElementById('loginEmail');
+    const passEl = document.getElementById('smartLoginPassword') || document.getElementById('loginPassword');
+    const errBox = document.getElementById('loginErrorMsg');
+    const btn = document.getElementById('smartLoginSubmitBtn');
+
+    const email = emailEl ? emailEl.value.trim() : '';
+    const password = passEl ? passEl.value : '';
+
+    if (!email || !password) {
+        alert('Please enter both Email and Password.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Logging in...';
+    }
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Login Now';
+    }
+
+    if (error) {
+        if (errBox) {
+            errBox.textContent = '❌ ' + error.message;
+            errBox.style.display = 'block';
+        } else {
+            alert('Login Failed: ' + error.message);
+        }
+        return;
+    }
+
+    await checkAuthSession();
+    closeSmartPopup();
+    showPublicTab(currentPublicTab);
 }
 
 async function checkAuthSession() {
@@ -75,21 +171,6 @@ function updateHeaderUI() {
     }
 }
 
-async function handleAdminLogin(e) {
-    if (e) e.preventDefault();
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value;
-
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) {
-        alert('Login Failed: ' + error.message);
-        return;
-    }
-    await checkAuthSession();
-    closeModal('loginModal');
-    showPublicTab(currentPublicTab);
-}
-
 async function handleAdminLogout() {
     await sb.auth.signOut();
     currentUser = null;
@@ -101,6 +182,10 @@ async function handleAdminLogout() {
 // ==========================================
 // 3. DATA LOADING & 1-SECOND AUTO-SYNC
 // ==========================================
+function getMainContainer() {
+    return document.getElementById('appContainer') || document.querySelector('main') || document.body;
+}
+
 async function loadAllInitialData() {
     await Promise.all([fetchPlayers(), fetchMatches()]);
     renderCurrentView();
@@ -171,13 +256,31 @@ function renderCurrentView() {
     else if (currentPublicTab === 'new_match') renderNewMatchSetupView();
 }
 
+function renderAdminQuickBar() {
+    if (!currentUser) return '';
+    return `
+        <div style="display:flex; gap:8px; flex-wrap:wrap; background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-bottom:14px; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.85rem; color:#4ade80; font-weight:600;">🛡️ Logged in (${currentAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'})</span>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn-primary btn-sm" onclick="showPublicTab('new_match')">+ New Match</button>
+                <button class="btn-secondary btn-sm" onclick="showPublicTab('players')">👤 Players</button>
+                ${currentAdminRole === 'super_admin' ? `<button class="btn-secondary btn-sm" onclick="showPublicTab('admins')">🛡️ Admins</button>` : ''}
+                <button class="btn-danger btn-sm" onclick="handleAdminLogout()">Logout</button>
+            </div>
+        </div>
+    `;
+}
+
 // ==========================================
 // 5. LIVE VIEW (PUBLIC + ADMIN SCORING)
 // ==========================================
 function renderLiveView() {
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
+    const adminBar = renderAdminQuickBar();
+
     if (!activeMatch) {
         container.innerHTML = `
+            ${adminBar}
             <div class="card" style="text-align:center; padding:40px 20px;">
                 <h2>🏏 No Live Match Right Now</h2>
                 <p style="color:#94a3b8; margin-top:8px;">Check Recent Matches or Match History for past scorecards.</p>
@@ -196,7 +299,7 @@ function renderLiveView() {
 }
 
 function renderPublicLiveScoreboard() {
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
     const sc = activeMatch.scorecard;
     const inn = sc.currentInnings === 1 ? sc.innings1 : sc.innings2;
     const oversText = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
@@ -222,6 +325,7 @@ function renderPublicLiveScoreboard() {
         : '';
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="score-banner">
             <div class="row-between">
                 <span class="badge badge-live">● LIVE (Auto-Sync 1s)</span>
@@ -270,9 +374,10 @@ async function takeOverScoring() {
 // ==========================================
 function renderNewMatchSetupView() {
     if (!currentUser) return showPublicTab('live');
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <h2>🏏 Start New Gully Cricket Match</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;">
@@ -295,13 +400,13 @@ function renderNewMatchSetupView() {
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
                     <div>
                         <strong style="color:#38bdf8;">Team 1 Players</strong>
-                        <div id="t1PlayersBox" style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+                        <div style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
                             ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t1p" value="${p.id}"> ${p.name}</label>`).join('')}
                         </div>
                     </div>
                     <div>
                         <strong style="color:#facc15;">Team 2 Players</strong>
-                        <div id="t2PlayersBox" style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+                        <div style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
                             ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t2p" value="${p.id}"> ${p.name}</label>`).join('')}
                         </div>
                     </div>
@@ -427,7 +532,8 @@ function renderLiveScoringScreen() {
         return `<span class="${cls}">${b}</span>`;
     }).join('');
 
-    document.getElementById('appContainer').innerHTML = `
+    getMainContainer().innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="score-banner">
             <div class="row-between">
                 <span class="badge badge-live">● SCORING LIVE</span>
@@ -552,10 +658,10 @@ function recordLegalBall(runs) {
 
 function openExtraModal(type) {
     if (!validateCreaseReady()) return;
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>${type === 'WD' ? 'Wide Ball (No Extra 1 Run)' : 'No Ball (No Extra 1 Run)'}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Gully Rule: Only runs scored off this delivery will be added, and the ball will be re-bowled.</p>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:12px;">
@@ -566,8 +672,7 @@ function openExtraModal(type) {
             <button class="btn-primary" style="padding:12px;" onclick="recordExtraBall('${type}', 4)">${type} + 4</button>
             <button class="btn-primary" style="padding:12px;" onclick="recordExtraBall('${type}', 6)">${type} + 6</button>
         </div>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 function recordExtraBall(type, runsScored) {
@@ -576,7 +681,6 @@ function recordExtraBall(type, runsScored) {
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
-    // Gully rule: NO automatic +1 run on WD/NB; only runs scored are added, legalBalls does NOT increase
     inn.runs += runsScored;
     inn.overRunsTracker = (inn.overRunsTracker || 0) + runsScored;
     if (type === 'WD') inn.extras.wd += 1;
@@ -599,7 +703,7 @@ function recordExtraBall(type, runsScored) {
         inn.nonStrikerId = temp;
     }
 
-    closeModal('popupModal');
+    closeSmartPopup();
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
@@ -611,10 +715,10 @@ function recordExtraBall(type, runsScored) {
 function openWicketModal() {
     if (!validateCreaseReady()) return;
 
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between" style="margin-bottom: 12px;">
             <h3>⚡ Select Wicket Type</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
             <button class="btn-danger" style="padding: 14px; font-weight: bold;" onclick="processStandardWicket('Bowled')">
@@ -630,8 +734,7 @@ function openWicketModal() {
                 🏃 Run Out
             </button>
         </div>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 function openRunOutOptions() {
@@ -639,7 +742,7 @@ function openRunOutOptions() {
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const nonStriker = inn.batters.find(b => b.id === inn.nonStrikerId);
 
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between" style="margin-bottom: 12px;">
             <h3>🏃 Run Out Details</h3>
             <button class="btn-secondary btn-sm" onclick="openWicketModal()">← Back</button>
@@ -648,11 +751,11 @@ function openRunOutOptions() {
         <div style="margin-bottom: 14px;">
             <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">1. कौन आउट हुआ? (Who is Out?)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <label style="background:#1e293b; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
                     <input type="radio" name="roVictim" value="striker" checked>
                     <span><strong>Striker:</strong> ${striker ? striker.name : 'Striker'}</span>
                 </label>
-                <label style="background:#1e293b; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
                     <input type="radio" name="roVictim" value="non_striker">
                     <span><strong>Non-Striker:</strong> ${nonStriker ? nonStriker.name : 'Non-Striker'}</span>
                 </label>
@@ -662,13 +765,13 @@ function openRunOutOptions() {
         <div style="margin-bottom: 16px;">
             <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">2. कितने रन पूरे हुए? (Completed Runs)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-                <label style="background:#1e293b; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
                     <input type="radio" name="roRuns" value="0" checked> <strong>0 Run</strong>
                 </label>
-                <label style="background:#1e293b; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
                     <input type="radio" name="roRuns" value="1"> <strong>1 Run</strong>
                 </label>
-                <label style="background:#1e293b; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
                     <input type="radio" name="roRuns" value="2"> <strong>2 Runs</strong>
                 </label>
             </div>
@@ -677,7 +780,7 @@ function openRunOutOptions() {
         <button class="btn-danger" style="width:100%; padding:12px; font-weight:bold;" onclick="confirmRunOut()">
             Confirm Run Out
         </button>
-    `;
+    `);
 }
 
 function processStandardWicket(type) {
@@ -703,7 +806,7 @@ function processStandardWicket(type) {
     inn.ballsHistory.push(ballLabel);
     inn.strikerId = null;
 
-    closeModal('popupModal');
+    closeSmartPopup();
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
@@ -733,14 +836,12 @@ function confirmRunOut() {
         bowler.balls += 1;
     }
 
-    // Rotate strike if 1 run completed before run out
     if (completedRuns % 2 === 1) {
         const tempId = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
         inn.nonStrikerId = tempId;
     }
 
-    // Mark chosen victim as out and clear their crease slot
     if (victimRole === 'striker' && striker) {
         striker.isOut = true;
         striker.dismissal = 'Run Out';
@@ -756,7 +857,7 @@ function confirmRunOut() {
     const ballLabel = completedRuns > 0 ? `${completedRuns}+W(RO)` : 'W(RO)';
     inn.ballsHistory.push(ballLabel);
 
-    closeModal('popupModal');
+    closeSmartPopup();
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
@@ -770,7 +871,6 @@ function checkOverAndInningsState() {
     const inn = getCurrentInnings();
     const maxBalls = activeMatch.overs * 6;
 
-    // Check over completion
     if (inn.legalBalls > 0 && inn.legalBalls % 6 === 0) {
         const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
         if (bowler && (inn.overRunsTracker || 0) === 0) {
@@ -778,14 +878,12 @@ function checkOverAndInningsState() {
         }
         inn.overRunsTracker = 0;
 
-        // Swap strike at end of over
         const temp = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
         inn.nonStrikerId = temp;
         inn.currentBowlerId = null;
     }
 
-    // Check 2nd innings target chased
     if (sc.currentInnings === 2) {
         const target = sc.innings1.runs + 1;
         if (inn.runs >= target) {
@@ -795,7 +893,6 @@ function checkOverAndInningsState() {
         }
     }
 
-    // Check overs finished
     if (inn.legalBalls >= maxBalls) {
         if (sc.currentInnings === 1) {
             alert(`1st Innings Complete! ${inn.battingTeam} scored ${inn.runs}/${inn.wickets}. Starting 2nd Innings.`);
@@ -829,23 +926,22 @@ async function finishMatch(resultText) {
 
 function openMatchEndOptions() {
     const sc = activeMatch.scorecard;
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>🏁 Match Controls</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
             ${sc.currentInnings === 1 ? `<button class="btn-primary" onclick="declareFirstInnings()">End 1st Innings & Start 2nd Innings</button>` : ''}
             <button class="btn-warning" style="color:#000;" onclick="declareManualResult()">Declare Winner & Finish Match</button>
             <button class="btn-danger" onclick="abandonCurrentMatch()">Abandon Match (No Result)</button>
         </div>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 function declareFirstInnings() {
     activeMatch.scorecard.currentInnings = 2;
-    closeModal('popupModal');
+    closeSmartPopup();
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
@@ -853,27 +949,26 @@ function declareFirstInnings() {
 function declareManualResult() {
     const res = prompt('Enter Match Result (e.g. Team A won by 15 runs):');
     if (!res) return;
-    closeModal('popupModal');
+    closeSmartPopup();
     finishMatch(res);
 }
 
 async function abandonCurrentMatch() {
     if (!confirm('Are you sure you want to abandon this match?')) return;
-    closeModal('popupModal');
+    closeSmartPopup();
     await finishMatch('Match Abandoned');
 }
 
 function openBabyOverModal() {
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>🍼 Adjust Overs (Baby Over)</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Current Match Overs: <strong>${activeMatch.overs}</strong></p>
         <input type="number" id="newOversInput" class="input-field" value="${activeMatch.overs}" min="1" max="50">
         <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="updateMatchOvers()">Update Overs</button>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 async function updateMatchOvers() {
@@ -881,7 +976,7 @@ async function updateMatchOvers() {
     if (!val || val < 1) return;
     activeMatch.overs = val;
     await sb.from('matches').update({ overs: val }).eq('id', activeMatch.id);
-    closeModal('popupModal');
+    closeSmartPopup();
     renderLiveScoringScreen();
 }
 
@@ -911,10 +1006,10 @@ function openSelectPlayerModal(role) {
         `;
     }).join('');
 
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>Select ${role === 'striker' ? 'Striker' : (role === 'non_striker' ? 'Non-Striker' : 'Bowler')}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; margin-top:12px;">
             ${listHtml || '<p style="color:#94a3b8;">No available players. Add players via Edit Teams.</p>'}
@@ -923,8 +1018,7 @@ function openSelectPlayerModal(role) {
             <input type="text" id="quickGuestName" class="input-field" placeholder="Or type quick player name...">
             <button class="btn-primary btn-sm" style="margin-top:6px; width:100%;" onclick="addQuickGuestAndAssign('${role}')">+ Add & Select</button>
         </div>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 function addQuickGuestAndAssign(role) {
@@ -971,16 +1065,16 @@ function assignPlayerRole(role, playerId, playerName) {
         inn.currentBowlerId = playerId;
     }
 
-    closeModal('popupModal');
+    closeSmartPopup();
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
 
 function openEditTeamsModal() {
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>👥 Edit Live Teams & Squads</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <div style="margin-top:10px;">
             <label>Team 1 Name</label>
@@ -999,8 +1093,7 @@ function openEditTeamsModal() {
             </div>
         </div>
         <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Team Names</button>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 function addPlayerToLiveSquad(teamNum) {
@@ -1034,7 +1127,7 @@ async function saveLiveTeamNames() {
         scorecard: activeMatch.scorecard
     }).eq('id', activeMatch.id);
 
-    closeModal('popupModal');
+    closeSmartPopup();
     renderLiveScoringScreen();
 }
 
@@ -1050,10 +1143,11 @@ async function syncMatchToSupabase() {
 // 10. RECENT MATCHES (LAST 5) & MATCH HISTORY (DATE SEARCH)
 // ==========================================
 function renderRecentMatchesView() {
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
     const recent = allMatches.filter(m => m.status === 'completed').slice(0, 5);
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <h2>🕒 Recent Matches (Last 5)</h2>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
@@ -1064,10 +1158,11 @@ function renderRecentMatchesView() {
 }
 
 function renderMatchHistoryView() {
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
     const completed = allMatches.filter(m => m.status === 'completed');
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <div class="row-between" style="flex-wrap:wrap; gap:10px;">
                 <h2>📚 All Match History (${completed.length})</h2>
@@ -1196,24 +1291,23 @@ function openMatchScorecardModal(matchId) {
         ? `<span class="badge badge-live" style="margin-right:8px;">● LIVE</span>`
         : '';
 
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>${liveBadge}${match.team1_name} vs ${match.team2_name}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕ Close</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕ Close</button>
         </div>
         <span style="color:#94a3b8; font-size:0.8rem;">📅 Played on: ${new Date(match.created_at).toLocaleDateString()}</span>
         ${match.result_text ? `<p style="color:#4ade80; font-weight:700; margin-top:4px;">🏆 ${match.result_text}</p>` : ''}
         ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
         ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
-    `;
-    openModal('popupModal');
+    `);
 }
 
 // ==========================================
 // 12. 100% ACCURATE CAREER PLAYER STATS FROM HISTORICAL SCORECARDS
 // ==========================================
 function renderPlayerStatsView() {
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
     const statsMap = {};
 
     allPlayers.forEach(p => {
@@ -1286,6 +1380,7 @@ function renderPlayerStatsView() {
     }).join('');
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <h2>📊 Career Player Stats (Verified Scorecards)</h2>
             <div class="stats-table-wrap" style="margin-top:14px;">
@@ -1305,7 +1400,7 @@ function renderPlayerStatsView() {
 // ==========================================
 function renderManagePlayersView() {
     if (!currentUser) return showPublicTab('live');
-    const container = document.getElementById('appContainer');
+    const container = getMainContainer();
 
     const playerCards = allPlayers.map(p => `
         <div class="row-between" style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
@@ -1324,6 +1419,7 @@ function renderManagePlayersView() {
     `).join('');
 
     container.innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <h2>👤 Manage Players</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
@@ -1375,10 +1471,10 @@ function openEditPlayerModal(playerId) {
     const p = allPlayers.find(x => x.id === playerId);
     if (!p) return;
 
-    document.getElementById('popupContent').innerHTML = `
+    showSmartPopup(`
         <div class="row-between">
             <h3>✏️ Edit Player</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
             <input type="text" id="editPName" class="input-field" value="${p.name}">
@@ -1394,14 +1490,13 @@ function openEditPlayerModal(playerId) {
             ${p.photo_url ? `<button class="btn-danger btn-sm" onclick="removePlayerPhoto('${p.id}')">Remove Current Photo</button>` : ''}
             <button class="btn-primary" onclick="savePlayerEdits('${p.id}')">Save Changes</button>
         </div>
-    `;
-    openModal('popupModal');
+    `);
 }
 
 async function removePlayerPhoto(playerId) {
     await sb.from('players').update({ photo_url: '' }).eq('id', playerId);
     await fetchPlayers();
-    closeModal('popupModal');
+    closeSmartPopup();
     renderManagePlayersView();
 }
 
@@ -1423,7 +1518,7 @@ async function savePlayerEdits(playerId) {
 
     await sb.from('players').update(updates).eq('id', playerId);
     await fetchPlayers();
-    closeModal('popupModal');
+    closeSmartPopup();
     renderManagePlayersView();
 }
 
@@ -1439,7 +1534,8 @@ async function renderManageAdminsView() {
     if (currentAdminRole !== 'super_admin') return showPublicTab('live');
     const { data: admins } = await sb.from('admins').select('*');
 
-    document.getElementById('appContainer').innerHTML = `
+    getMainContainer().innerHTML = `
+        ${renderAdminQuickBar()}
         <div class="card">
             <h2>🛡️ Manage Admins (Super Admin Only)</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
