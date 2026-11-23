@@ -16,13 +16,27 @@ let liveSyncInterval = null;
 let currentPublicTab = 'live';
 
 // ==========================================
-// 2. INITIALIZATION & AUTHENTICATION
+// 2. INITIALIZATION, MODALS & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     await checkAuthSession();
     await loadAllInitialData();
     startAutoSync();
 });
+
+function openModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.style.display = 'flex';
+}
+
+function closeModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.style.display = 'none';
+}
+
+function openLoginModal() {
+    openModal('loginModal');
+}
 
 async function checkAuthSession() {
     const { data: { session } } = await sb.auth.getSession();
@@ -82,15 +96,6 @@ async function handleAdminLogout() {
     currentAdminRole = null;
     updateHeaderUI();
     showPublicTab('live');
-}
-
-function openLoginModal() {
-    document.getElementById('loginModal').style.display = 'flex';
-}
-
-function closeModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.style.display = 'none';
 }
 
 // ==========================================
@@ -266,13 +271,6 @@ async function takeOverScoring() {
 function renderNewMatchSetupView() {
     if (!currentUser) return showPublicTab('live');
     const container = document.getElementById('appContainer');
-
-    const playerCheckboxes = allPlayers.map(p => `
-        <label style="display:flex; align-items:center; gap:6px; background:#0f172a; padding:6px 10px; border-radius:6px; border:1px solid #334155; cursor:pointer;">
-            <input type="checkbox" class="p-select" value="${p.id}" data-name="${p.name}">
-            <span>${p.name} ${p.nickname ? `(${p.nickname})` : ''}</span>
-        </label>
-    `).join('');
 
     container.innerHTML = `
         <div class="card">
@@ -569,7 +567,7 @@ function openExtraModal(type) {
             <button class="btn-primary" style="padding:12px;" onclick="recordExtraBall('${type}', 6)">${type} + 6</button>
         </div>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 function recordExtraBall(type, runsScored) {
@@ -633,7 +631,7 @@ function openWicketModal() {
             </button>
         </div>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 function openRunOutOptions() {
@@ -842,7 +840,7 @@ function openMatchEndOptions() {
             <button class="btn-danger" onclick="abandonCurrentMatch()">Abandon Match (No Result)</button>
         </div>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 function declareFirstInnings() {
@@ -875,7 +873,7 @@ function openBabyOverModal() {
         <input type="number" id="newOversInput" class="input-field" value="${activeMatch.overs}" min="1" max="50">
         <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="updateMatchOvers()">Update Overs</button>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 async function updateMatchOvers() {
@@ -926,7 +924,7 @@ function openSelectPlayerModal(role) {
             <button class="btn-primary btn-sm" style="margin-top:6px; width:100%;" onclick="addQuickGuestAndAssign('${role}')">+ Add & Select</button>
         </div>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 function addQuickGuestAndAssign(role) {
@@ -979,7 +977,6 @@ function assignPlayerRole(role, playerId, playerName) {
 }
 
 function openEditTeamsModal() {
-    const sc = activeMatch.scorecard;
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>👥 Edit Live Teams & Squads</h3>
@@ -1003,7 +1000,7 @@ function openEditTeamsModal() {
         </div>
         <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Team Names</button>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 function addPlayerToLiveSquad(teamNum) {
@@ -1209,7 +1206,7 @@ function openMatchScorecardModal(matchId) {
         ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
         ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 // ==========================================
@@ -1398,7 +1395,7 @@ function openEditPlayerModal(playerId) {
             <button class="btn-primary" onclick="savePlayerEdits('${p.id}')">Save Changes</button>
         </div>
     `;
-    document.getElementById('popupModal').style.display = 'flex';
+    openModal('popupModal');
 }
 
 async function removePlayerPhoto(playerId) {
