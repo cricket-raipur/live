@@ -7,155 +7,22 @@ const SUPABASE_ANON_KEY = 'sb_publishable__JjU5SFZFPvqLVbxpVXYJQ_v8s3CyNX';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-let currentAdminRole = null;
+let currentAdminProfile = null;
 let allPlayers = [];
 let allMatches = [];
 let activeMatch = null;
 let undoStack = [];
 let liveSyncInterval = null;
-let currentPublicTab = 'live';
+let currentView = 'live';
 
 // ==========================================
-// 2. INITIALIZATION, SAFE CONTAINER & MODALS
+// 2. INITIALIZATION & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    ensureSafeAppContainer();
-    ensureDynamicModalExists();
     await checkAuthSession();
     await loadAllInitialData();
     startAutoSync();
 });
-
-// Never wipes out document.body or index.html navbar
-function ensureSafeAppContainer() {
-    let container = document.getElementById('appContainer')
-        || document.getElementById('mainContainer')
-        || document.getElementById('content')
-        || document.getElementById('viewContainer')
-        || document.querySelector('main');
-
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'appContainer';
-        container.style.cssText = 'max-width: 960px; margin: 16px auto; padding: 0 12px 40px 12px;';
-        document.body.appendChild(container);
-    }
-    return container;
-}
-
-function getMainContainer() {
-    return ensureSafeAppContainer();
-}
-
-function ensureDynamicModalExists() {
-    if (!document.getElementById('smartDynamicModal')) {
-        const modalDiv = document.createElement('div');
-        modalDiv.id = 'smartDynamicModal';
-        modalDiv.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:9999; align-items:center; justify-content:center; padding:16px;';
-        modalDiv.innerHTML = `
-            <div id="smartDynamicContent" style="background:#1e293b; color:#f8fafc; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; border-radius:12px; padding:20px; border:1px solid #334155; box-shadow:0 20px 25px -5px rgba(0,0,0,0.6);"></div>
-        `;
-        document.body.appendChild(modalDiv);
-    }
-}
-
-function showSmartPopup(htmlContent) {
-    ensureDynamicModalExists();
-    document.getElementById('smartDynamicContent').innerHTML = htmlContent;
-    document.getElementById('smartDynamicModal').style.display = 'flex';
-}
-
-function closeSmartPopup() {
-    const el = document.getElementById('smartDynamicModal');
-    if (el) el.style.display = 'none';
-    const legacy = document.getElementById('popupModal');
-    if (legacy) legacy.style.display = 'none';
-    const loginLegacy = document.getElementById('loginModal');
-    if (loginLegacy) loginLegacy.style.display = 'none';
-}
-
-function openModal(modalId) {
-    if (modalId === 'loginModal') {
-        openLoginModal();
-        return;
-    }
-    const el = document.getElementById(modalId);
-    if (el) el.style.display = 'flex';
-}
-
-function closeModal(modalId) {
-    closeSmartPopup();
-    if (modalId) {
-        const el = document.getElementById(modalId);
-        if (el) el.style.display = 'none';
-    }
-}
-
-// ==========================================
-// 3. AUTHENTICATION & ADMIN ROLE CHECK
-// ==========================================
-function openLoginModal() {
-    showSmartPopup(`
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0;">🔐 Admin Login</h3>
-            <button type="button" onclick="closeSmartPopup()" style="background:#334155; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer;">✕</button>
-        </div>
-        <form onsubmit="handleAdminLogin(event)" style="display:flex; flex-direction:column; gap:12px;">
-            <div>
-                <label style="display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:4px;">Admin Email</label>
-                <input type="email" id="smartLoginEmail" required placeholder="admin@example.com" style="width:100%; padding:10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;">
-            </div>
-            <div>
-                <label style="display:block; font-size:0.85rem; color:#94a3b8; margin-bottom:4px;">Password</label>
-                <input type="password" id="smartLoginPassword" required placeholder="••••••••" style="width:100%; padding:10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;">
-            </div>
-            <div id="loginErrorMsg" style="color:#f87171; font-size:0.85rem; display:none;"></div>
-            <button type="submit" id="smartLoginSubmitBtn" style="background:#2563eb; color:#fff; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Login Now</button>
-        </form>
-    `);
-}
-
-async function handleAdminLogin(e) {
-    if (e) e.preventDefault();
-    const emailEl = document.getElementById('smartLoginEmail') || document.getElementById('loginEmail');
-    const passEl = document.getElementById('smartLoginPassword') || document.getElementById('loginPassword');
-    const errBox = document.getElementById('loginErrorMsg');
-    const btn = document.getElementById('smartLoginSubmitBtn');
-
-    const email = emailEl ? emailEl.value.trim() : '';
-    const password = passEl ? passEl.value : '';
-
-    if (!email || !password) {
-        alert('Please enter both Email and Password.');
-        return;
-    }
-
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Logging in...';
-    }
-
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-
-    if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'Login Now';
-    }
-
-    if (error) {
-        if (errBox) {
-            errBox.textContent = '❌ ' + error.message;
-            errBox.style.display = 'block';
-        } else {
-            alert('Login Failed: ' + error.message);
-        }
-        return;
-    }
-
-    await checkAuthSession();
-    closeSmartPopup();
-    showPublicTab(currentPublicTab);
-}
 
 async function checkAuthSession() {
     const { data: { session } } = await sb.auth.getSession();
@@ -166,40 +33,143 @@ async function checkAuthSession() {
             .select('*')
             .eq('id', currentUser.id)
             .single();
-        currentAdminRole = adminData ? adminData.role : 'admin';
+        currentAdminProfile = adminData || { id: currentUser.id, name: currentUser.email, role: 'admin' };
     } else {
         currentUser = null;
-        currentAdminRole = null;
+        currentAdminProfile = null;
     }
-    updateHeaderUI();
+    updateNavbarUI();
 }
 
-function updateHeaderUI() {
-    const adminControls = document.getElementById('adminControls');
-    const loginBtn = document.getElementById('headerLoginBtn');
-    const logoutBtn = document.getElementById('headerLogoutBtn');
-    const manageAdminsBtn = document.getElementById('manageAdminsNavBtn');
+function updateNavbarUI() {
+    const menuBtn = document.getElementById('menuBtn');
+    const openLoginBtn = document.getElementById('openLoginBtn');
+    const welcomeText = document.getElementById('welcomeText');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const manageAdminsLink = document.getElementById('manageAdminsLink');
+    const adminDrawer = document.getElementById('adminDrawer');
 
     if (currentUser) {
-        if (adminControls) adminControls.style.display = 'flex';
-        if (loginBtn) loginBtn.style.display = 'none';
-        if (logoutBtn) logoutBtn.style.display = 'inline-block';
-        if (manageAdminsBtn) {
-            manageAdminsBtn.style.display = currentAdminRole === 'super_admin' ? 'inline-block' : 'none';
+        if (menuBtn) menuBtn.classList.remove('hidden');
+        if (openLoginBtn) openLoginBtn.classList.add('hidden');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        if (welcomeText) {
+            welcomeText.textContent = `Hi, ${currentAdminProfile.name || 'Admin'}`;
+            welcomeText.classList.remove('hidden');
+        }
+        if (manageAdminsLink) {
+            if (currentAdminProfile.role === 'super_admin') {
+                manageAdminsLink.classList.remove('hidden');
+            } else {
+                manageAdminsLink.classList.add('hidden');
+            }
         }
     } else {
-        if (adminControls) adminControls.style.display = 'none';
-        if (loginBtn) loginBtn.style.display = 'inline-block';
-        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (menuBtn) menuBtn.classList.add('hidden');
+        if (openLoginBtn) openLoginBtn.classList.remove('hidden');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+        if (welcomeText) welcomeText.classList.add('hidden');
+        if (manageAdminsLink) manageAdminsLink.classList.add('hidden');
+        if (adminDrawer) adminDrawer.classList.add('hidden');
     }
 }
 
-async function handleAdminLogout() {
+async function loginAdmin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+
+    if (errEl) errEl.classList.add('hidden');
+
+    if (!email || !password) {
+        if (errEl) {
+            errEl.textContent = 'Please enter both Email and Password.';
+            errEl.classList.remove('hidden');
+        }
+        return;
+    }
+
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+        if (errEl) {
+            errEl.textContent = error.message;
+            errEl.classList.remove('hidden');
+        } else {
+            alert('Login Failed: ' + error.message);
+        }
+        return;
+    }
+
+    await checkAuthSession();
+    closeModal('loginModal');
+    renderCurrentView();
+}
+
+async function logoutAdmin() {
     await sb.auth.signOut();
     currentUser = null;
-    currentAdminRole = null;
-    updateHeaderUI();
+    currentAdminProfile = null;
+    updateNavbarUI();
+    goHome();
+}
+
+// ==========================================
+// 3. MODALS, DRAWER & NAVIGATION (MATCHES index.html)
+// ==========================================
+function openModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (el) el.classList.add('hidden');
+}
+
+function toggleDrawer() {
+    const drawer = document.getElementById('adminDrawer');
+    if (drawer) drawer.classList.toggle('hidden');
+}
+
+function goHome() {
+    const drawer = document.getElementById('adminDrawer');
+    if (drawer) drawer.classList.add('hidden');
     showPublicTab('live');
+}
+
+function showPublicTab(tabName) {
+    currentView = tabName;
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    const activeTab = document.getElementById(`tab-${tabName}`);
+    if (activeTab) activeTab.classList.add('active');
+
+    renderCurrentView();
+}
+
+function navigateAdmin(section) {
+    if (!currentUser) {
+        openModal('loginModal');
+        return;
+    }
+    const drawer = document.getElementById('adminDrawer');
+    if (drawer) drawer.classList.add('hidden');
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    currentView = section;
+    renderCurrentView();
+}
+
+function renderCurrentView() {
+    if (currentView === 'live') renderLiveView();
+    else if (currentView === 'recent') renderRecentMatchesView();
+    else if (currentView === 'history') renderMatchHistoryView();
+    else if (currentView === 'players') renderPlayerStatsView();
+    else if (currentView === 'startMatch') renderStartMatchView();
+    else if (currentView === 'addPlayer') renderManagePlayersView();
+    else if (currentView === 'recentMatches') renderManageMatchesView();
+    else if (currentView === 'manageAdmins') renderManageAdminsView();
+    else if (currentView === 'changePassword') renderChangePasswordView();
+    else renderLiveView();
 }
 
 // ==========================================
@@ -211,27 +181,15 @@ async function loadAllInitialData() {
 }
 
 async function fetchPlayers() {
-    const { data, error } = await sb.from('players').select('*');
-    if (error) {
-        console.error('Players fetch error:', error.message);
-        return;
-    }
-    if (data) {
-        allPlayers = data.sort((a, b) => {
-            const nameA = (a.name || a.full_name || '').toLowerCase();
-            const nameB = (b.name || b.full_name || '').toLowerCase();
-            return nameA.localeCompare(nameB);
-        });
+    const { data, error } = await sb.from('players').select('*').order('name', { ascending: true });
+    if (!error && data) {
+        allPlayers = data;
     }
 }
 
 async function fetchMatches() {
     const { data, error } = await sb.from('matches').select('*').order('created_at', { ascending: false });
-    if (error) {
-        console.error('Matches fetch error:', error.message);
-        return;
-    }
-    if (data) {
+    if (!error && data) {
         allMatches = data;
         const live = allMatches.find(m => m.status === 'live');
         if (live) {
@@ -252,90 +210,30 @@ function startAutoSync() {
     if (liveSyncInterval) clearInterval(liveSyncInterval);
     liveSyncInterval = setInterval(async () => {
         const prevLiveId = activeMatch ? activeMatch.id : null;
-        const prevUpdated = activeMatch ? JSON.stringify(activeMatch.scorecard) : '';
+        const prevScoreStr = activeMatch ? JSON.stringify(activeMatch.scorecard) : '';
 
         await fetchMatches();
 
         const newLiveId = activeMatch ? activeMatch.id : null;
-        const newUpdated = activeMatch ? JSON.stringify(activeMatch.scorecard) : '';
+        const newScoreStr = activeMatch ? JSON.stringify(activeMatch.scorecard) : '';
 
-        if (currentPublicTab === 'live' && (prevLiveId !== newLiveId || prevUpdated !== newUpdated)) {
+        if (currentView === 'live' && (prevLiveId !== newLiveId || prevScoreStr !== newScoreStr)) {
             renderLiveView();
         }
     }, 1000);
 }
 
 // ==========================================
-// 5. UNIVERSAL TAB ROUTING (SUPPORTS ALL TAB ALIASES)
-// ==========================================
-function normalizeTabName(raw) {
-    const t = String(raw || 'live').toLowerCase().replace(/[-_]/g, '');
-    if (t === 'live' || t === 'livescore') return 'live';
-    if (t === 'recent' || t === 'recentmatches') return 'recent';
-    if (t === 'history' || t === 'matchhistory' || t === 'allmatches') return 'history';
-    if (t === 'stats' || t === 'playerstats' || t === 'playersstats' || t === 'careerstats') return 'stats';
-    if (t === 'players' || t === 'manageplayers') return 'players';
-    if (t === 'admins' || t === 'manageadmins') return 'admins';
-    if (t === 'newmatch' || t === 'creatematch' || t === 'startmatch') return 'new_match';
-    return 'live';
-}
-
-function showPublicTab(tabName) {
-    currentPublicTab = normalizeTabName(tabName);
-    document.querySelectorAll('.nav-btn, button').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.getElementById(`tab-${tabName}`) || document.getElementById(`tab-${currentPublicTab}`);
-    if (activeBtn) activeBtn.classList.add('active');
-
-    renderCurrentView();
-}
-
-// Alias functions in case index.html calls switchTab or openTab
-function switchTab(tabName) { showPublicTab(tabName); }
-function openTab(tabName) { showPublicTab(tabName); }
-
-function renderCurrentView() {
-    if (currentPublicTab === 'live') renderLiveView();
-    else if (currentPublicTab === 'recent') renderRecentMatchesView();
-    else if (currentPublicTab === 'history') renderMatchHistoryView();
-    else if (currentPublicTab === 'stats') renderPlayerStatsView();
-    else if (currentPublicTab === 'players') renderManagePlayersView();
-    else if (currentPublicTab === 'admins') renderManageAdminsView();
-    else if (currentPublicTab === 'new_match') renderNewMatchSetupView();
-}
-
-function renderAdminQuickBar() {
-    if (!currentUser) return '';
-    return `
-        <div style="display:flex; gap:8px; flex-wrap:wrap; background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-bottom:14px; align-items:center; justify-content:space-between;">
-            <span style="font-size:0.85rem; color:#4ade80; font-weight:600;">🛡️ Logged in (${currentAdminRole === 'super_admin' ? 'Super Admin' : 'Admin'})</span>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                <button class="btn-primary btn-sm" onclick="showPublicTab('new_match')">+ New Match</button>
-                <button class="btn-secondary btn-sm" onclick="showPublicTab('players')">👤 Players</button>
-                ${currentAdminRole === 'super_admin' ? `<button class="btn-secondary btn-sm" onclick="showPublicTab('admins')">🛡️ Admins</button>` : ''}
-                <button class="btn-danger btn-sm" onclick="handleAdminLogout()">Logout</button>
-            </div>
-        </div>
-    `;
-}
-
-// ==========================================
-// 6. LIVE VIEW (PUBLIC + ADMIN SCORING)
+// 5. LIVE VIEW (PUBLIC + ADMIN SCORING)
 // ==========================================
 function renderLiveView() {
-    const container = getMainContainer();
-    const adminBar = renderAdminQuickBar();
-
+    const container = document.getElementById('appContainer');
     if (!activeMatch) {
         container.innerHTML = `
-            ${adminBar}
             <div class="card" style="text-align:center; padding:40px 20px;">
                 <h2>🏏 No Live Match Right Now</h2>
-                <p style="color:#94a3b8; margin-top:8px;">Check Recent Matches, Match History, or Player Stats from the menu.</p>
-                <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:16px;">
-                    <button class="btn-secondary" onclick="showPublicTab('recent')">🕒 Recent Matches</button>
-                    <button class="btn-secondary" onclick="showPublicTab('stats')">📊 Player Stats</button>
-                    ${currentUser ? `<button class="btn-primary" onclick="showPublicTab('new_match')">+ Start New Match</button>` : ''}
-                </div>
+                <p style="color:#94a3b8; margin-top:8px;">Check Recent Matches, Match History, or Players Stats from the tabs above.</p>
+                ${currentUser ? `<button class="btn-primary" style="margin-top:16px;" onclick="navigateAdmin('startMatch')">+ Start New Live Match</button>` : ''}
             </div>
         `;
         return;
@@ -350,7 +248,7 @@ function renderLiveView() {
 }
 
 function renderPublicLiveScoreboard() {
-    const container = getMainContainer();
+    const container = document.getElementById('appContainer');
     const sc = activeMatch.scorecard;
     const inn = sc.currentInnings === 1 ? sc.innings1 : sc.innings2;
     const oversText = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
@@ -376,7 +274,6 @@ function renderPublicLiveScoreboard() {
         : '';
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="score-banner">
             <div class="row-between">
                 <span class="badge badge-live">● LIVE (Auto-Sync 1s)</span>
@@ -421,14 +318,13 @@ async function takeOverScoring() {
 }
 
 // ==========================================
-// 7. NEW MATCH SETUP & TEAM MANAGEMENT
+// 6. START NEW LIVE MATCH (ADMIN DRAWER)
 // ==========================================
-function renderNewMatchSetupView() {
-    if (!currentUser) return showPublicTab('live');
-    const container = getMainContainer();
+function renderStartMatchView() {
+    if (!currentUser) return goHome();
+    const container = document.getElementById('appContainer');
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="card">
             <h2>🏏 Start New Gully Cricket Match</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px;">
@@ -447,18 +343,18 @@ function renderNewMatchSetupView() {
             </div>
 
             <div style="margin-top:16px;">
-                <h4>Select Playing Squads (Optional - You can also add players live)</h4>
+                <h4>Select Playing Squads (Optional - Can also add live)</h4>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;">
                     <div>
                         <strong style="color:#38bdf8;">Team 1 Players</strong>
                         <div style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
-                            ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t1p" value="${p.id}"> ${p.name || p.full_name}</label>`).join('')}
+                            ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t1p" value="${p.id}"> ${p.name}</label>`).join('')}
                         </div>
                     </div>
                     <div>
                         <strong style="color:#facc15;">Team 2 Players</strong>
                         <div style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
-                            ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t2p" value="${p.id}"> ${p.name || p.full_name}</label>`).join('')}
+                            ${allPlayers.map(p => `<label style="display:flex; gap:6px;"><input type="checkbox" name="t2p" value="${p.id}"> ${p.name}</label>`).join('')}
                         </div>
                     </div>
                 </div>
@@ -479,7 +375,7 @@ async function createNewMatch() {
 
     const makeSquad = (ids) => ids.map(id => {
         const p = allPlayers.find(x => x.id === id);
-        return { id, name: p ? (p.name || p.full_name) : 'Player' };
+        return { id, name: p ? p.name : 'Player' };
     });
 
     const scorecard = {
@@ -555,7 +451,7 @@ function undoLastBall() {
 }
 
 // ==========================================
-// 8. BALL-BY-BALL LIVE SCORING ENGINE
+// 7. BALL-BY-BALL LIVE SCORING ENGINE (GULLY RULES + FULL RUN-OUT)
 // ==========================================
 function getCurrentInnings() {
     return activeMatch.scorecard.currentInnings === 1
@@ -583,8 +479,7 @@ function renderLiveScoringScreen() {
         return `<span class="${cls}">${b}</span>`;
     }).join('');
 
-    getMainContainer().innerHTML = `
-        ${renderAdminQuickBar()}
+    document.getElementById('appContainer').innerHTML = `
         <div class="score-banner">
             <div class="row-between">
                 <span class="badge badge-live">● SCORING LIVE</span>
@@ -709,10 +604,10 @@ function recordLegalBall(runs) {
 
 function openExtraModal(type) {
     if (!validateCreaseReady()) return;
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>${type === 'WD' ? 'Wide Ball (No Extra 1 Run)' : 'No Ball (No Extra 1 Run)'}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Gully Rule: Only runs scored off this delivery will be added, and the ball will be re-bowled.</p>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:12px;">
@@ -723,7 +618,8 @@ function openExtraModal(type) {
             <button class="btn-primary" style="padding:12px;" onclick="recordExtraBall('${type}', 4)">${type} + 4</button>
             <button class="btn-primary" style="padding:12px;" onclick="recordExtraBall('${type}', 6)">${type} + 6</button>
         </div>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 function recordExtraBall(type, runsScored) {
@@ -732,6 +628,7 @@ function recordExtraBall(type, runsScored) {
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
+    // Gully rule: NO extra 1 run on WD/NB; only scored runs added & ball is re-bowled
     inn.runs += runsScored;
     inn.overRunsTracker = (inn.overRunsTracker || 0) + runsScored;
     if (type === 'WD') inn.extras.wd += 1;
@@ -754,22 +651,22 @@ function recordExtraBall(type, runsScored) {
         inn.nonStrikerId = temp;
     }
 
-    closeSmartPopup();
+    closeModal('popupModal');
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
 
 // ==========================================
-// 8B. WICKET & COMPLETE RUN-OUT MODAL
+// 7B. WICKET MODAL (BOWLED, CAUGHT, STUMPING, RUN OUT + STRIKER/NON-STRIKER + 0/1/2 RUNS)
 // ==========================================
 function openWicketModal() {
     if (!validateCreaseReady()) return;
 
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between" style="margin-bottom: 12px;">
             <h3>⚡ Select Wicket Type</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
             <button class="btn-danger" style="padding: 14px; font-weight: bold;" onclick="processStandardWicket('Bowled')">
@@ -785,7 +682,8 @@ function openWicketModal() {
                 🏃 Run Out
             </button>
         </div>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 function openRunOutOptions() {
@@ -793,14 +691,14 @@ function openRunOutOptions() {
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const nonStriker = inn.batters.find(b => b.id === inn.nonStrikerId);
 
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between" style="margin-bottom: 12px;">
             <h3>🏃 Run Out Details</h3>
             <button class="btn-secondary btn-sm" onclick="openWicketModal()">← Back</button>
         </div>
 
         <div style="margin-bottom: 14px;">
-            <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">1. Kaun Out Hua? (Who is Out?)</label>
+            <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">1. कौन आउट हुआ? (Who is Out?)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
                     <input type="radio" name="roVictim" value="striker" checked>
@@ -814,7 +712,7 @@ function openRunOutOptions() {
         </div>
 
         <div style="margin-bottom: 16px;">
-            <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">2. Kitne Run Poore Hue? (Completed Runs)</label>
+            <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">2. कितने रन पूरे हुए? (Completed Runs)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
                     <input type="radio" name="roRuns" value="0" checked> <strong>0 Run</strong>
@@ -831,7 +729,7 @@ function openRunOutOptions() {
         <button class="btn-danger" style="width:100%; padding:12px; font-weight:bold;" onclick="confirmRunOut()">
             Confirm Run Out
         </button>
-    `);
+    `;
 }
 
 function processStandardWicket(type) {
@@ -857,7 +755,7 @@ function processStandardWicket(type) {
     inn.ballsHistory.push(ballLabel);
     inn.strikerId = null;
 
-    closeSmartPopup();
+    closeModal('popupModal');
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
@@ -908,14 +806,14 @@ function confirmRunOut() {
     const ballLabel = completedRuns > 0 ? `${completedRuns}+W(RO)` : 'W(RO)';
     inn.ballsHistory.push(ballLabel);
 
-    closeSmartPopup();
+    closeModal('popupModal');
     checkOverAndInningsState();
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
 
 // ==========================================
-// 9. OVER COMPLETION, INNINGS SWITCH & RESULT
+// 8. OVER COMPLETION, INNINGS SWITCH & MATCH RESULT
 // ==========================================
 function checkOverAndInningsState() {
     const sc = activeMatch.scorecard;
@@ -977,22 +875,23 @@ async function finishMatch(resultText) {
 
 function openMatchEndOptions() {
     const sc = activeMatch.scorecard;
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>🏁 Match Controls</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
             ${sc.currentInnings === 1 ? `<button class="btn-primary" onclick="declareFirstInnings()">End 1st Innings & Start 2nd Innings</button>` : ''}
             <button class="btn-warning" style="color:#000;" onclick="declareManualResult()">Declare Winner & Finish Match</button>
             <button class="btn-danger" onclick="abandonCurrentMatch()">Abandon Match (No Result)</button>
         </div>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 function declareFirstInnings() {
     activeMatch.scorecard.currentInnings = 2;
-    closeSmartPopup();
+    closeModal('popupModal');
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
@@ -1000,26 +899,27 @@ function declareFirstInnings() {
 function declareManualResult() {
     const res = prompt('Enter Match Result (e.g. Team A won by 15 runs):');
     if (!res) return;
-    closeSmartPopup();
+    closeModal('popupModal');
     finishMatch(res);
 }
 
 async function abandonCurrentMatch() {
     if (!confirm('Are you sure you want to abandon this match?')) return;
-    closeSmartPopup();
+    closeModal('popupModal');
     await finishMatch('Match Abandoned');
 }
 
 function openBabyOverModal() {
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>🍼 Adjust Overs (Baby Over)</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Current Match Overs: <strong>${activeMatch.overs}</strong></p>
         <input type="number" id="newOversInput" class="input-field" value="${activeMatch.overs}" min="1" max="50">
         <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="updateMatchOvers()">Update Overs</button>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 async function updateMatchOvers() {
@@ -1027,12 +927,12 @@ async function updateMatchOvers() {
     if (!val || val < 1) return;
     activeMatch.overs = val;
     await sb.from('matches').update({ overs: val }).eq('id', activeMatch.id);
-    closeSmartPopup();
+    closeModal('popupModal');
     renderLiveScoringScreen();
 }
 
 // ==========================================
-// 10. PLAYER SELECTION & LIVE TEAM EDITING
+// 9. PLAYER SELECTION & LIVE TEAM EDITING
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1044,7 +944,7 @@ function openSelectPlayerModal(role) {
         : (sc.currentInnings === 1 ? sc.team2Squad : sc.team1Squad);
 
     if (!squad || squad.length === 0) {
-        squad = allPlayers.map(p => ({ id: p.id, name: p.name || p.full_name }));
+        squad = allPlayers.map(p => ({ id: p.id, name: p.name }));
     }
 
     const listHtml = squad.map(p => {
@@ -1057,10 +957,10 @@ function openSelectPlayerModal(role) {
         `;
     }).join('');
 
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>Select ${role === 'striker' ? 'Striker' : (role === 'non_striker' ? 'Non-Striker' : 'Bowler')}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto; margin-top:12px;">
             ${listHtml || '<p style="color:#94a3b8;">No available players. Add players via Edit Teams.</p>'}
@@ -1069,15 +969,16 @@ function openSelectPlayerModal(role) {
             <input type="text" id="quickGuestName" class="input-field" placeholder="Or type quick player name...">
             <button class="btn-primary btn-sm" style="margin-top:6px; width:100%;" onclick="addQuickGuestAndAssign('${role}')">+ Add & Select</button>
         </div>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 function addQuickGuestAndAssign(role) {
     const name = document.getElementById('quickGuestName').value.trim();
     if (!name) return;
-    const matched = allPlayers.find(p => (p.name || p.full_name || '').toLowerCase() === name.toLowerCase());
+    const matched = allPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
     const playerId = matched ? matched.id : ('guest_' + Date.now());
-    assignPlayerRole(role, playerId, matched ? (matched.name || matched.full_name) : name);
+    assignPlayerRole(role, playerId, matched ? matched.name : name);
 }
 
 function assignPlayerRole(role, playerId, playerName) {
@@ -1117,16 +1018,16 @@ function assignPlayerRole(role, playerId, playerName) {
         inn.currentBowlerId = playerId;
     }
 
-    closeSmartPopup();
+    closeModal('popupModal');
     syncMatchToSupabase();
     renderLiveScoringScreen();
 }
 
 function openEditTeamsModal() {
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>👥 Edit Live Teams & Squads</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <div style="margin-top:10px;">
             <label>Team 1 Name</label>
@@ -1137,7 +1038,7 @@ function openEditTeamsModal() {
         <div style="margin-top:12px;">
             <label>Add Registered Player to Squad:</label>
             <select id="addSquadPlayerSelect" class="input-field" style="margin-top:4px;">
-                ${allPlayers.map(p => `<option value="${p.id}">${p.name || p.full_name}</option>`).join('')}
+                ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
             </select>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
                 <button class="btn-secondary btn-sm" onclick="addPlayerToLiveSquad(1)">+ Add to Team 1</button>
@@ -1145,7 +1046,8 @@ function openEditTeamsModal() {
             </div>
         </div>
         <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Team Names</button>
-    `);
+    `;
+    openModal('popupModal');
 }
 
 function addPlayerToLiveSquad(teamNum) {
@@ -1179,7 +1081,7 @@ async function saveLiveTeamNames() {
         scorecard: activeMatch.scorecard
     }).eq('id', activeMatch.id);
 
-    closeSmartPopup();
+    closeModal('popupModal');
     renderLiveScoringScreen();
 }
 
@@ -1192,16 +1094,15 @@ async function syncMatchToSupabase() {
 }
 
 // ==========================================
-// 11. RECENT MATCHES (LAST 5) & MATCH HISTORY
+// 10. PUBLIC VIEWS: RECENT (TOP 5), HISTORY & PLAYERS STATS
 // ==========================================
 function renderRecentMatchesView() {
-    const container = getMainContainer();
+    const container = document.getElementById('appContainer');
     const recent = allMatches.filter(m => m.status === 'completed').slice(0, 5);
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="card">
-            <h2>🕒 Recent Matches (Last 5)</h2>
+            <h2>🕒 Recent Matches (Top 5)</h2>
             <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
                 ${recent.length === 0 ? '<p style="color:#94a3b8;">No completed matches yet.</p>' : recent.map(m => renderMatchCardItem(m)).join('')}
             </div>
@@ -1210,14 +1111,13 @@ function renderRecentMatchesView() {
 }
 
 function renderMatchHistoryView() {
-    const container = getMainContainer();
+    const container = document.getElementById('appContainer');
     const completed = allMatches.filter(m => m.status === 'completed');
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="card">
             <div class="row-between" style="flex-wrap:wrap; gap:10px;">
-                <h2>📚 All Match History (${completed.length})</h2>
+                <h2>📜 All Match History (${completed.length})</h2>
                 <div style="display:flex; gap:8px; align-items:center;">
                     <input type="date" id="historyDateFilter" class="input-field" onchange="filterMatchesByDate()">
                     <button class="btn-secondary btn-sm" onclick="resetHistoryDateFilter()">All</button>
@@ -1250,10 +1150,11 @@ function resetHistoryDateFilter() {
 
 function renderMatchCardItem(m) {
     const sc = m.scorecard || {};
-    const inn1 = sc.innings1 || (sc.innings && sc.innings[0]) || { runs: 0, wickets: 0 };
-    const inn2 = sc.innings2 || (sc.innings && sc.innings[1]) || { runs: 0, wickets: 0 };
+    const inn1 = sc.innings1 || { runs: 0, wickets: 0 };
+    const inn2 = sc.innings2 || { runs: 0, wickets: 0 };
     const dateStr = new Date(m.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    const deleteBtn = currentAdminRole === 'super_admin'
+    const isSuperAdmin = currentAdminProfile && currentAdminProfile.role === 'super_admin';
+    const deleteBtn = isSuperAdmin
         ? `<button class="btn-danger btn-sm" onclick="deleteMatchById('${m.id}')">🗑️ Delete</button>`
         : '';
 
@@ -1277,49 +1178,40 @@ function renderMatchCardItem(m) {
 }
 
 async function deleteMatchById(matchId) {
-    if (currentAdminRole !== 'super_admin') return alert('Only Super Admin can delete matches!');
+    if (!currentAdminProfile || currentAdminProfile.role !== 'super_admin') {
+        return alert('Only Super Admin can delete matches!');
+    }
     if (!confirm('Permanently delete this match from database?')) return;
     await sb.from('matches').delete().eq('id', matchId);
     await fetchMatches();
     renderCurrentView();
 }
 
-// ==========================================
-// 12. FULL SCORECARD POPUP MODAL
-// ==========================================
 function openMatchScorecardModal(matchId) {
     const match = allMatches.find(m => m.id === matchId) || activeMatch;
     if (!match || !match.scorecard) return;
 
-    const sc = match.scorecard;
-    const inn1 = sc.innings1 || (sc.innings && sc.innings[0]);
-    const inn2 = sc.innings2 || (sc.innings && sc.innings[1]);
-
     const renderInningsBlock = (inn, title) => {
         if (!inn) return '';
-        const batters = inn.batters || inn.batting || inn.batsmen || [];
-        const bowlers = inn.bowlers || inn.bowling || [];
-        const balls = inn.legalBalls || inn.balls || 0;
-        const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
-
+        const overs = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
         return `
             <div style="margin-top:16px; background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
                 <div class="row-between">
-                    <h4>${title}: ${inn.battingTeam || ''}</h4>
-                    <strong>${inn.runs || 0}/${inn.wickets || 0} (${overs} Ov)</strong>
+                    <h4>${title}: ${inn.battingTeam}</h4>
+                    <strong>${inn.runs}/${inn.wickets} (${overs} Ov)</strong>
                 </div>
                 <div class="stats-table-wrap" style="margin-top:8px;">
                     <table class="stats-table">
                         <thead><tr><th>Batter</th><th>Status</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
                         <tbody>
-                            ${batters.map(b => `
+                            ${(inn.batters || []).map(b => `
                                 <tr>
                                     <td><strong>${b.name}</strong></td>
-                                    <td style="font-size:0.8rem; color:#94a3b8;">${b.isOut ? (b.dismissal || 'out') : 'not out'}</td>
-                                    <td><strong>${b.runs || 0}</strong></td>
-                                    <td>${b.balls || 0}</td>
-                                    <td>${b.fours || 0}</td>
-                                    <td>${b.sixes || 0}</td>
+                                    <td style="font-size:0.8rem; color:#94a3b8;">${b.isOut ? b.dismissal : 'not out'}</td>
+                                    <td><strong>${b.runs}</strong></td>
+                                    <td>${b.balls}</td>
+                                    <td>${b.fours}</td>
+                                    <td>${b.sixes}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1330,19 +1222,16 @@ function openMatchScorecardModal(matchId) {
                     <table class="stats-table">
                         <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
                         <tbody>
-                            ${bowlers.map(bw => {
-                                const bwBalls = bw.balls || 0;
-                                return `
-                                    <tr>
-                                        <td>${bw.name}</td>
-                                        <td>${Math.floor(bwBalls / 6)}.${bwBalls % 6}</td>
-                                        <td>${bw.maidens || 0}</td>
-                                        <td>${bw.runs || 0}</td>
-                                        <td><strong>${bw.wickets || 0}</strong></td>
-                                        <td>${bwBalls > 0 ? ((bw.runs || 0) / (bwBalls / 6)).toFixed(2) : '0.00'}</td>
-                                    </tr>
-                                `;
-                            }).join('')}
+                            ${(inn.bowlers || []).map(bw => `
+                                <tr>
+                                    <td>${bw.name}</td>
+                                    <td>${Math.floor(bw.balls / 6)}.${bw.balls % 6}</td>
+                                    <td>${bw.maidens}</td>
+                                    <td>${bw.runs}</td>
+                                    <td><strong>${bw.wickets}</strong></td>
+                                    <td>${bw.balls > 0 ? (bw.runs / (bw.balls / 6)).toFixed(2) : '0.00'}</td>
+                                </tr>
+                            `).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1354,40 +1243,35 @@ function openMatchScorecardModal(matchId) {
         ? `<span class="badge badge-live" style="margin-right:8px;">● LIVE</span>`
         : '';
 
-    showSmartPopup(`
+    document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>${liveBadge}${match.team1_name} vs ${match.team2_name}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕ Close</button>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕ Close</button>
         </div>
         <span style="color:#94a3b8; font-size:0.8rem;">📅 Played on: ${new Date(match.created_at).toLocaleDateString()}</span>
         ${match.result_text ? `<p style="color:#4ade80; font-weight:700; margin-top:4px;">🏆 ${match.result_text}</p>` : ''}
-        ${renderInningsBlock(inn1, '1st Innings')}
-        ${renderInningsBlock(inn2, '2nd Innings')}
-    `);
+        ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
+        ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
+    `;
+    openModal('popupModal');
 }
 
 // ==========================================
-// 13. 100% ACCURATE CAREER PLAYER STATS (MATCHES BY ID + NAME)
+// 11. CAREER PLAYER STATS (PUBLIC TAB: 'players')
 // ==========================================
-async function renderPlayerStatsView() {
-    const container = getMainContainer();
-    container.innerHTML = `${renderAdminQuickBar()}<div class="card"><p>⏳ Loading Player Stats...</p></div>`;
-
-    if (allPlayers.length === 0) await fetchPlayers();
-    if (allMatches.length === 0) await fetchMatches();
-
+function renderPlayerStatsView() {
+    const container = document.getElementById('appContainer');
     const statsMap = {};
-    const nameToKey = {};
+    const nameToId = {};
 
     allPlayers.forEach(p => {
-        const pName = (p.name || p.full_name || 'Unknown').trim();
         const key = String(p.id);
         statsMap[key] = {
             id: key,
-            name: pName,
+            name: p.name,
             nickname: p.nickname || '',
             role: p.role || 'All-Rounder',
-            photo_url: p.photo_url || p.avatar_url || '',
+            photo_url: p.photo_url || '',
             matches: new Set(),
             runs: 0,
             ballsFaced: 0,
@@ -1397,55 +1281,25 @@ async function renderPlayerStatsView() {
             ballsBowled: 0,
             runsConceded: 0
         };
-        nameToKey[pName.toLowerCase()] = key;
+        nameToId[p.name.trim().toLowerCase()] = key;
     });
 
-    const getOrCreateStatEntry = (rawId, rawName) => {
+    const resolvePlayerStat = (rawId, rawName) => {
         const idStr = rawId ? String(rawId) : '';
         const cleanName = (rawName || '').trim();
         const lowerName = cleanName.toLowerCase();
 
         if (idStr && statsMap[idStr]) return statsMap[idStr];
-        if (lowerName && nameToKey[lowerName]) return statsMap[nameToKey[lowerName]];
-
-        if (cleanName) {
-            const fallbackKey = idStr || ('name_' + lowerName);
-            statsMap[fallbackKey] = {
-                id: fallbackKey,
-                name: cleanName,
-                nickname: '',
-                role: 'Player',
-                photo_url: '',
-                matches: new Set(),
-                runs: 0,
-                ballsFaced: 0,
-                fours: 0,
-                sixes: 0,
-                wickets: 0,
-                ballsBowled: 0,
-                runsConceded: 0
-            };
-            nameToKey[lowerName] = fallbackKey;
-            return statsMap[fallbackKey];
-        }
+        if (lowerName && nameToId[lowerName]) return statsMap[nameToId[lowerName]];
         return null;
     };
 
     allMatches.forEach(m => {
         if (!m.scorecard) return;
-        const sc = m.scorecard;
-        const inningsList = [
-            sc.innings1,
-            sc.innings2,
-            ...(Array.isArray(sc.innings) ? sc.innings : [])
-        ].filter(Boolean);
-
-        inningsList.forEach(inn => {
-            const batters = inn.batters || inn.batting || inn.batsmen || [];
-            const bowlers = inn.bowlers || inn.bowling || [];
-
-            batters.forEach(b => {
-                const entry = getOrCreateStatEntry(b.id || b.playerId, b.name);
+        [m.scorecard.innings1, m.scorecard.innings2].forEach(inn => {
+            if (!inn) return;
+            (inn.batters || []).forEach(b => {
+                const entry = resolvePlayerStat(b.id, b.name);
                 if (entry) {
                     entry.matches.add(m.id);
                     entry.runs += Number(b.runs || 0);
@@ -1454,9 +1308,8 @@ async function renderPlayerStatsView() {
                     entry.sixes += Number(b.sixes || 0);
                 }
             });
-
-            bowlers.forEach(bw => {
-                const entry = getOrCreateStatEntry(bw.id || bw.playerId, bw.name);
+            (inn.bowlers || []).forEach(bw => {
+                const entry = resolvePlayerStat(bw.id, bw.name);
                 if (entry) {
                     entry.matches.add(m.id);
                     entry.wickets += Number(bw.wickets || 0);
@@ -1473,8 +1326,8 @@ async function renderPlayerStatsView() {
         const sr = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(1) : '0.0';
         const econ = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(2) : '0.00';
         const avatar = s.photo_url
-            ? `<img src="${s.photo_url}" style="width:32px; height:32px; border-radius:50%; object-fit:cover;">`
-            : `<span style="display:inline-flex; width:32px; height:32px; border-radius:50%; background:#334155; align-items:center; justify-content:center; font-weight:700;">${s.name.charAt(0).toUpperCase()}</span>`;
+            ? `<img src="${s.photo_url}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;">`
+            : `<span style="display:inline-flex; width:34px; height:34px; border-radius:50%; background:#334155; align-items:center; justify-content:center; font-weight:700;">${s.name.charAt(0).toUpperCase()}</span>`;
 
         return `
             <tr>
@@ -1497,20 +1350,14 @@ async function renderPlayerStatsView() {
     }).join('');
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="card">
-            <div class="row-between">
-                <h2>📊 Career Player Stats (${sortedStats.length} Players)</h2>
-                <button class="btn-secondary btn-sm" onclick="renderPlayerStatsView()">🔄 Refresh</button>
-            </div>
-            <div class="stats-table-wrap" style="margin-top:14px; overflow-x:auto;">
-                <table class="stats-table" style="width:100%; border-collapse:collapse;">
+            <h2>📊 Career Players Stats (Verified Scorecards)</h2>
+            <div class="stats-table-wrap" style="margin-top:14px;">
+                <table class="stats-table">
                     <thead>
                         <tr><th>Player</th><th>Mat</th><th>Runs</th><th>BF</th><th>4s/6s</th><th>SR</th><th>Wkts</th><th>Econ</th></tr>
                     </thead>
-                    <tbody>
-                        ${rows || '<tr><td colspan="8" style="text-align:center; padding:16px; color:#94a3b8;">No player stats found yet. Play a match or add players in Manage Players.</td></tr>'}
-                    </tbody>
+                    <tbody>${rows || '<tr><td colspan="8">No players registered yet.</td></tr>'}</tbody>
                 </table>
             </div>
         </div>
@@ -1518,36 +1365,32 @@ async function renderPlayerStatsView() {
 }
 
 // ==========================================
-// 14. MANAGE PLAYERS & ADMINS
+// 12. ADMIN DRAWER SECTIONS (PLAYERS, MATCHES, ADMINS, PASSWORD)
 // ==========================================
 function renderManagePlayersView() {
-    if (!currentUser) return showPublicTab('live');
-    const container = getMainContainer();
+    if (!currentUser) return goHome();
+    const container = document.getElementById('appContainer');
+    const isSuperAdmin = currentAdminProfile && currentAdminProfile.role === 'super_admin';
 
-    const playerCards = allPlayers.map(p => {
-        const pName = p.name || p.full_name || 'Player';
-        const pPhoto = p.photo_url || p.avatar_url || '';
-        return `
-            <div class="row-between" style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    ${pPhoto ? `<img src="${pPhoto}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">` : ''}
-                    <div>
-                        <strong>${pName}</strong> ${p.nickname ? `(${p.nickname})` : ''}
-                        <div style="font-size:0.8rem; color:#94a3b8;">${p.role || 'All-Rounder'}</div>
-                    </div>
-                </div>
-                <div style="display:flex; gap:6px;">
-                    <button class="btn-secondary btn-sm" onclick="openEditPlayerModal('${p.id}')">✏️ Edit</button>
-                    ${currentAdminRole === 'super_admin' ? `<button class="btn-danger btn-sm" onclick="deletePlayer('${p.id}')">🗑️</button>` : ''}
+    const playerCards = allPlayers.map(p => `
+        <div class="row-between" style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                ${p.photo_url ? `<img src="${p.photo_url}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">` : ''}
+                <div>
+                    <strong>${p.name}</strong> ${p.nickname ? `(${p.nickname})` : ''}
+                    <div style="font-size:0.8rem; color:#94a3b8;">${p.role || 'All-Rounder'}</div>
                 </div>
             </div>
-        `;
-    }).join('');
+            <div style="display:flex; gap:6px;">
+                <button class="btn-secondary btn-sm" onclick="openEditPlayerModal('${p.id}')">✏️ Edit</button>
+                ${isSuperAdmin ? `<button class="btn-danger btn-sm" onclick="deletePlayer('${p.id}')">🗑️</button>` : ''}
+            </div>
+        </div>
+    `).join('');
 
     container.innerHTML = `
-        ${renderAdminQuickBar()}
         <div class="card">
-            <h2>👤 Manage Players</h2>
+            <h2>👤 Add & Manage Players</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
                 <input type="text" id="newPlayerName" class="input-field" placeholder="Full Name *">
                 <input type="text" id="newPlayerNick" class="input-field" placeholder="Nickname">
@@ -1596,45 +1439,41 @@ async function addNewPlayer() {
 function openEditPlayerModal(playerId) {
     const p = allPlayers.find(x => x.id === playerId);
     if (!p) return;
-    const pName = p.name || p.full_name || '';
-    const pPhoto = p.photo_url || p.avatar_url || '';
 
-    showSmartPopup(`
-        <div class="row-between">
-            <h3>✏️ Edit Player</h3>
-            <button class="btn-secondary btn-sm" onclick="closeSmartPopup()">✕</button>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
-            <input type="text" id="editPName" class="input-field" value="${pName}">
-            <input type="text" id="editPNick" class="input-field" value="${p.nickname || ''}" placeholder="Nickname">
-            <select id="editPRole" class="input-field">
-                <option value="All-Rounder" ${p.role === 'All-Rounder' ? 'selected' : ''}>All-Rounder</option>
-                <option value="Batter" ${p.role === 'Batter' ? 'selected' : ''}>Batter</option>
-                <option value="Bowler" ${p.role === 'Bowler' ? 'selected' : ''}>Bowler</option>
-                <option value="Wicket-Keeper" ${p.role === 'Wicket-Keeper' ? 'selected' : ''}>Wicket-Keeper</option>
-            </select>
-            <label style="font-size:0.85rem; color:#94a3b8;">Update Photo (Optional):</label>
-            <input type="file" id="editPPhoto" accept="image/*" class="input-field">
-            ${pPhoto ? `<button class="btn-danger btn-sm" onclick="removePlayerPhoto('${p.id}')">Remove Current Photo</button>` : ''}
-            <button class="btn-primary" onclick="savePlayerEdits('${p.id}')">Save Changes</button>
-        </div>
-    `);
+    document.getElementById('editPlayerId').value = p.id;
+    document.getElementById('editPlayerName').value = p.name || '';
+    document.getElementById('editPlayerNick').value = p.nickname || '';
+    document.getElementById('editPlayerRole').value = p.role || 'All-Rounder';
+    document.getElementById('editPlayerPhotoFile').value = '';
+
+    const preview = document.getElementById('editPlayerPhotoPreview');
+    preview.innerHTML = p.photo_url
+        ? `<div style="display:flex; align-items:center; gap:10px;">
+               <img src="${p.photo_url}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
+               <button type="button" class="btn-danger btn-sm" onclick="removePlayerPhoto('${p.id}')">Remove Photo</button>
+           </div>`
+        : '<span style="font-size:0.8rem; color:#94a3b8;">No photo uploaded</span>';
+
+    openModal('editPlayerModal');
 }
 
 async function removePlayerPhoto(playerId) {
     await sb.from('players').update({ photo_url: '' }).eq('id', playerId);
     await fetchPlayers();
-    closeSmartPopup();
+    closeModal('editPlayerModal');
     renderManagePlayersView();
 }
 
-async function savePlayerEdits(playerId) {
-    const name = document.getElementById('editPName').value.trim();
-    const nickname = document.getElementById('editPNick').value.trim();
-    const role = document.getElementById('editPRole').value;
-    const photoFile = document.getElementById('editPPhoto').files[0];
+async function saveEditedPlayer() {
+    const playerId = document.getElementById('editPlayerId').value;
+    const name = document.getElementById('editPlayerName').value.trim();
+    const nickname = document.getElementById('editPlayerNick').value.trim();
+    const role = document.getElementById('editPlayerRole').value;
+    const photoFile = document.getElementById('editPlayerPhotoFile').files[0];
 
+    if (!name) return alert('Player name cannot be empty!');
     const updates = { name, nickname, role };
+
     if (photoFile) {
         const fileName = `${Date.now()}_${photoFile.name.replace(/\s+/g, '_')}`;
         const { data: upData, error: upErr } = await sb.storage.from('player-photos').upload(fileName, photoFile);
@@ -1646,24 +1485,30 @@ async function savePlayerEdits(playerId) {
 
     await sb.from('players').update(updates).eq('id', playerId);
     await fetchPlayers();
-    closeSmartPopup();
+    closeModal('editPlayerModal');
     renderManagePlayersView();
 }
 
 async function deletePlayer(playerId) {
-    if (currentAdminRole !== 'super_admin') return alert('Only Super Admin can delete players!');
+    if (!currentAdminProfile || currentAdminProfile.role !== 'super_admin') {
+        return alert('Only Super Admin can delete players!');
+    }
     if (!confirm('Delete this player permanently?')) return;
     await sb.from('players').delete().eq('id', playerId);
     await fetchPlayers();
     renderManagePlayersView();
 }
 
+function renderManageMatchesView() {
+    if (!currentUser) return goHome();
+    renderMatchHistoryView();
+}
+
 async function renderManageAdminsView() {
-    if (currentAdminRole !== 'super_admin') return showPublicTab('live');
+    if (!currentAdminProfile || currentAdminProfile.role !== 'super_admin') return goHome();
     const { data: admins } = await sb.from('admins').select('*');
 
-    getMainContainer().innerHTML = `
-        ${renderAdminQuickBar()}
+    document.getElementById('appContainer').innerHTML = `
         <div class="card">
             <h2>🛡️ Manage Admins (Super Admin Only)</h2>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
@@ -1716,4 +1561,27 @@ async function removeAdminAccess(adminId) {
     if (!confirm('Remove admin access for this user?')) return;
     await sb.from('admins').delete().eq('id', adminId);
     renderManageAdminsView();
+}
+
+function renderChangePasswordView() {
+    if (!currentUser) return goHome();
+    document.getElementById('appContainer').innerHTML = `
+        <div class="card">
+            <h2>🔑 Change Password</h2>
+            <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Enter a new password (minimum 6 characters).</p>
+            <input type="password" id="newSelfPassword" class="input-field" placeholder="New Password">
+            <button class="btn-primary" style="margin-top:12px; width:100%;" onclick="updateSelfPassword()">Update Password</button>
+        </div>
+    `;
+}
+
+async function updateSelfPassword() {
+    const newPassword = document.getElementById('newSelfPassword').value;
+    if (!newPassword || newPassword.length < 6) {
+        return alert('Password must be at least 6 characters.');
+    }
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) return alert('Error: ' + error.message);
+    alert('Password updated successfully!');
+    goHome();
 }
