@@ -18,6 +18,8 @@ let statsSubTab = 'both';
 
 let setupTeam1Squad = [];
 let setupTeam2Squad = [];
+let setupTeam1CaptainId = '';
+let setupTeam2CaptainId = '';
 
 function getMatchOvers(matchObj = activeMatch) {
     if (!matchObj) return 6;
@@ -57,6 +59,20 @@ function injectResponsiveMobileStyles() {
         .icc-stat-val { font-size: 1.25rem; font-weight: 800; color: #f8fafc; }
         .icc-stat-lbl { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
         .cmp-win { color: #4ade80; font-weight: 800; }
+        .cap-badge { background: #facc15; color: #000; font-size: 0.68rem; font-weight: 800; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+        /* Cricbuzz-style Over Highlights */
+        .ov-row { display: grid; grid-template-columns: 62px 1fr 44px; align-items: center; border-bottom: 1px solid #1e293b; padding: 10px 6px; gap: 8px; }
+        .ov-left { border-right: 1px solid #1e293b; padding-right: 6px; }
+        .ov-num { font-weight: 800; font-size: 0.88rem; color: #f8fafc; }
+        .ov-score { font-size: 0.74rem; color: #94a3b8; margin-top: 2px; }
+        .ov-desc { font-size: 0.8rem; color: #cbd5e1; margin-bottom: 6px; font-weight: 500; }
+        .ov-balls { display: flex; flex-wrap: wrap; gap: 5px; }
+        .ov-ball { min-width: 24px; height: 24px; padding: 0 5px; border-radius: 4px; background: #1e293b; color: #e2e8f0; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #334155; }
+        .ov-ball.b-4 { background: #0284c7; color: #fff; border-color: #0284c7; }
+        .ov-ball.b-6 { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+        .ov-ball.b-w { background: #dc2626; color: #fff; border-color: #dc2626; }
+        .ov-ball.b-ex { background: #d97706; color: #fff; border-color: #d97706; }
+        .ov-runs { text-align: center; font-weight: 800; font-size: 0.95rem; color: #f8fafc; border-left: 1px solid #1e293b; padding-left: 6px; }
         @media (max-width: 600px) {
             .container { padding: 6px !important; }
             .card, .score-banner { padding: 11px !important; border-radius: 10px !important; }
@@ -153,7 +169,7 @@ async function logoutAdmin() {
 }
 
 // ==========================================
-// 4. PLAYER AVATAR & FULL-SCREEN PHOTO ZOOM LIGHTBOX
+// 4. PLAYER AVATAR, CAPTAIN TAG & FULL-SCREEN PHOTO ZOOM
 // ==========================================
 function getPlayerPhotoUrl(playerId, playerName) {
     if (playerId) {
@@ -166,6 +182,17 @@ function getPlayerPhotoUrl(playerId, playerName) {
         if (byName && byName.photo_url) return byName.photo_url;
     }
     return '';
+}
+
+function isCaptainInMatch(playerId, matchObj = activeMatch) {
+    if (!matchObj || !matchObj.scorecard || !playerId) return false;
+    const sc = matchObj.scorecard;
+    return String(sc.team1CaptainId) === String(playerId) || String(sc.team2CaptainId) === String(playerId);
+}
+
+function formatNameWithCap(playerId, playerName, matchObj = activeMatch) {
+    const cap = isCaptainInMatch(playerId, matchObj) ? `<span class="cap-badge">C</span>` : '';
+    return `${playerName}${cap}`;
 }
 
 function renderPlayerAvatarHtml(playerId, playerName, size = 26) {
@@ -239,6 +266,8 @@ function navigateAdmin(section) {
     if (section === 'startMatch') {
         setupTeam1Squad = [];
         setupTeam2Squad = [];
+        setupTeam1CaptainId = '';
+        setupTeam2CaptainId = '';
     }
     renderCurrentView();
 }
@@ -370,19 +399,20 @@ function renderPublicLiveScoreboard() {
             <table class="compact-table" style="margin-top:8px;">
                 <thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
                 <tbody>
-                    ${striker ? `<tr style="background:rgba(56,189,248,0.1);"><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(striker.id, striker.name, 24)}<strong>${striker.name}*</strong></td><td><strong>${striker.runs}</strong></td><td>${striker.balls}</td><td>${striker.fours}</td><td>${striker.sixes}</td><td>${striker.balls > 0 ? ((striker.runs / striker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
-                    ${nonStriker ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 24)}<span>${nonStriker.name}</span></td><td>${nonStriker.runs}</td><td>${nonStriker.balls}</td><td>${nonStriker.fours}</td><td>${nonStriker.sixes}</td><td>${nonStriker.balls > 0 ? ((nonStriker.runs / nonStriker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
+                    ${striker ? `<tr style="background:rgba(56,189,248,0.1);"><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(striker.id, striker.name, 24)}<strong>${formatNameWithCap(striker.id, striker.name)}*</strong></td><td><strong>${striker.runs}</strong></td><td>${striker.balls}</td><td>${striker.fours}</td><td>${striker.sixes}</td><td>${striker.balls > 0 ? ((striker.runs / striker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
+                    ${nonStriker ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 24)}<span>${formatNameWithCap(nonStriker.id, nonStriker.name)}</span></td><td>${nonStriker.runs}</td><td>${nonStriker.balls}</td><td>${nonStriker.fours}</td><td>${nonStriker.sixes}</td><td>${nonStriker.balls > 0 ? ((nonStriker.runs / nonStriker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
                 </tbody>
             </table>
 
             <table class="compact-table" style="margin-top:12px;">
                 <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
                 <tbody>
-                    ${bowler ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bowler.id, bowler.name, 24)}<strong>${bowler.name}</strong></td><td>${Math.floor(bowler.balls / 6)}.${bowler.balls % 6}</td><td>${bowler.maidens}</td><td>${bowler.runs}</td><td><strong>${bowler.wickets}</strong></td><td>${bowler.balls > 0 ? (bowler.runs / (bowler.balls / 6)).toFixed(1) : '0.0'}</td></tr>` : ''}
+                    ${bowler ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bowler.id, bowler.name, 24)}<strong>${formatNameWithCap(bowler.id, bowler.name)}</strong></td><td>${Math.floor(bowler.balls / 6)}.${bowler.balls % 6}</td><td>${bowler.maidens}</td><td>${bowler.runs}</td><td><strong>${bowler.wickets}</strong></td><td>${bowler.balls > 0 ? (bowler.runs / (bowler.balls / 6)).toFixed(1) : '0.0'}</td></tr>` : ''}
                 </tbody>
             </table>
-            <div style="margin-top:12px; text-align:right;">
-                <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${activeMatch.id}')">📋 Full Scorecard</button>
+            <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;">
+                <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${activeMatch.id}', 'overs')">📊 Overs</button>
+                <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${activeMatch.id}', 'scorecard')">📋 Full Scorecard</button>
             </div>
         </div>
     `;
@@ -396,7 +426,7 @@ async function takeOverScoring() {
 }
 
 // ==========================================
-// 8. START LIVE MATCH SETUP (AUTO-SELECT + ALL REQUIRED DB COLUMNS)
+// 8. START LIVE MATCH SETUP (WITH CAPTAIN SELECTOR FOR BOTH TEAMS)
 // ==========================================
 function renderStartMatchView() {
     if (!currentUser) return goHome();
@@ -405,7 +435,7 @@ function renderStartMatchView() {
     container.innerHTML = `
         <div class="card">
             <h2 style="font-size:1.15rem;">🏏 Start New Live Match</h2>
-            <p style="color:#94a3b8; font-size:0.82rem; margin-bottom:12px;">Select player from dropdown to add immediately (Common & Guest supported).</p>
+            <p style="color:#94a3b8; font-size:0.82rem; margin-bottom:12px;">Select players from dropdown to add immediately, then choose each team's Captain.</p>
 
             <div class="resp-grid-2">
                 <div>
@@ -440,6 +470,7 @@ function renderStartMatchView() {
             </div>
 
             <div class="resp-grid-2" style="margin-top:14px;">
+                <!-- TEAM 1 -->
                 <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
                     <h4 style="color:#38bdf8; margin-bottom:6px; font-size:0.95rem;">Team 1 Squad (<span id="t1Count">0</span>)</h4>
                     <select id="regPlayerSelect1" class="input-field" onchange="addRegPlayerToSetup(1)" style="width:100%;">
@@ -450,9 +481,16 @@ function renderStartMatchView() {
                         <input type="text" id="guestInput1" class="input-field" placeholder="Guest player name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addGuestPlayerToSetup(1);}">
                         <button type="button" class="btn-secondary btn-sm" onclick="addGuestPlayerToSetup(1)">+ Guest</button>
                     </div>
+                    <div style="margin-top:8px;">
+                        <label style="font-size:0.75rem; color:#facc15; font-weight:700;">👑 Team 1 Captain:</label>
+                        <select id="captainSelect1" class="input-field" onchange="setupTeam1CaptainId=this.value; renderSetupSquadLists();" style="margin-top:3px; padding:6px;">
+                            <option value="">-- Select Captain --</option>
+                        </select>
+                    </div>
                     <div id="setupSquadList1" style="margin-top:8px; display:flex; flex-direction:column; gap:5px; max-height:170px; overflow-y:auto;"></div>
                 </div>
 
+                <!-- TEAM 2 -->
                 <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
                     <h4 style="color:#facc15; margin-bottom:6px; font-size:0.95rem;">Team 2 Squad (<span id="t2Count">0</span>)</h4>
                     <select id="regPlayerSelect2" class="input-field" onchange="addRegPlayerToSetup(2)" style="width:100%;">
@@ -462,6 +500,12 @@ function renderStartMatchView() {
                     <div style="display:flex; gap:6px; margin-top:8px;">
                         <input type="text" id="guestInput2" class="input-field" placeholder="Guest player name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addGuestPlayerToSetup(2);}">
                         <button type="button" class="btn-secondary btn-sm" onclick="addGuestPlayerToSetup(2)">+ Guest</button>
+                    </div>
+                    <div style="margin-top:8px;">
+                        <label style="font-size:0.75rem; color:#facc15; font-weight:700;">👑 Team 2 Captain:</label>
+                        <select id="captainSelect2" class="input-field" onchange="setupTeam2CaptainId=this.value; renderSetupSquadLists();" style="margin-top:3px; padding:6px;">
+                            <option value="">-- Select Captain --</option>
+                        </select>
                     </div>
                     <div id="setupSquadList2" style="margin-top:8px; display:flex; flex-direction:column; gap:5px; max-height:170px; overflow-y:auto;"></div>
                 </div>
@@ -497,6 +541,8 @@ function addRegPlayerToSetup(teamNum) {
         return;
     }
     target.push({ id: pId, name: pName, isGuest: false });
+    if (teamNum === 1 && !setupTeam1CaptainId) setupTeam1CaptainId = String(pId);
+    if (teamNum === 2 && !setupTeam2CaptainId) setupTeam2CaptainId = String(pId);
     sel.value = '';
     renderSetupSquadLists();
 }
@@ -512,23 +558,47 @@ function addGuestPlayerToSetup(teamNum) {
     };
     const target = teamNum === 1 ? setupTeam1Squad : setupTeam2Squad;
     target.push(guestObj);
+    if (teamNum === 1 && !setupTeam1CaptainId) setupTeam1CaptainId = String(guestObj.id);
+    if (teamNum === 2 && !setupTeam2CaptainId) setupTeam2CaptainId = String(guestObj.id);
     inp.value = '';
     renderSetupSquadLists();
 }
 
 function removePlayerFromSetup(teamNum, index) {
-    if (teamNum === 1) setupTeam1Squad.splice(index, 1);
-    else setupTeam2Squad.splice(index, 1);
+    if (teamNum === 1) {
+        const removed = setupTeam1Squad.splice(index, 1)[0];
+        if (removed && String(removed.id) === String(setupTeam1CaptainId)) {
+            setupTeam1CaptainId = setupTeam1Squad[0] ? String(setupTeam1Squad[0].id) : '';
+        }
+    } else {
+        const removed = setupTeam2Squad.splice(index, 1)[0];
+        if (removed && String(removed.id) === String(setupTeam2CaptainId)) {
+            setupTeam2CaptainId = setupTeam2Squad[0] ? String(setupTeam2Squad[0].id) : '';
+        }
+    }
     renderSetupSquadLists();
 }
 
 function renderSetupSquadLists() {
-    const renderList = (arr, otherArr, teamNum) => arr.map((p, idx) => {
+    const capSel1 = document.getElementById('captainSelect1');
+    const capSel2 = document.getElementById('captainSelect2');
+
+    if (capSel1) {
+        capSel1.innerHTML = `<option value="">-- Select Captain --</option>` +
+            setupTeam1Squad.map(p => `<option value="${p.id}" ${String(p.id) === String(setupTeam1CaptainId) ? 'selected' : ''}>${p.name}</option>`).join('');
+    }
+    if (capSel2) {
+        capSel2.innerHTML = `<option value="">-- Select Captain --</option>` +
+            setupTeam2Squad.map(p => `<option value="${p.id}" ${String(p.id) === String(setupTeam2CaptainId) ? 'selected' : ''}>${p.name}</option>`).join('');
+    }
+
+    const renderList = (arr, otherArr, capId, teamNum) => arr.map((p, idx) => {
         const isCommon = otherArr.some(o => String(o.id) === String(p.id) || o.name.toLowerCase() === p.name.toLowerCase());
-        const commonTag = isCommon ? `<span style="color:#facc15; font-size:0.72rem; font-weight:700;"> (Common)</span>` : '';
+        const commonTag = isCommon ? `<span style="color:#38bdf8; font-size:0.72rem; font-weight:700;"> (Common)</span>` : '';
+        const capTag = String(p.id) === String(capId) ? `<span class="cap-badge">C</span>` : '';
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:5px 8px; border-radius:6px; font-size:0.82rem;">
-                <span style="display:flex; align-items:center; gap:6px; overflow:hidden;">${renderPlayerAvatarHtml(p.id, p.name, 20)} <span>${idx + 1}. ${p.name}${commonTag}</span></span>
+                <span style="display:flex; align-items:center; gap:6px; overflow:hidden;">${renderPlayerAvatarHtml(p.id, p.name, 20)} <span>${idx + 1}. ${p.name}${capTag}${commonTag}</span></span>
                 <button type="button" onclick="removePlayerFromSetup(${teamNum}, ${idx})" style="background:transparent; border:none; color:#f87171; cursor:pointer; font-weight:bold; padding:0 4px;">✕</button>
             </div>
         `;
@@ -539,8 +609,8 @@ function renderSetupSquadLists() {
     const c1 = document.getElementById('t1Count');
     const c2 = document.getElementById('t2Count');
 
-    if (l1) l1.innerHTML = renderList(setupTeam1Squad, setupTeam2Squad, 1) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
-    if (l2) l2.innerHTML = renderList(setupTeam2Squad, setupTeam1Squad, 2) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
+    if (l1) l1.innerHTML = renderList(setupTeam1Squad, setupTeam2Squad, setupTeam1CaptainId, 1) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
+    if (l2) l2.innerHTML = renderList(setupTeam2Squad, setupTeam1Squad, setupTeam2CaptainId, 2) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
     if (c1) c1.textContent = setupTeam1Squad.length;
     if (c2) c2.textContent = setupTeam2Squad.length;
 }
@@ -565,6 +635,8 @@ async function createNewMatch() {
     let bowlFirstTeam = rawT2;
     let batFirstSquad = [...setupTeam1Squad];
     let bowlFirstSquad = [...setupTeam2Squad];
+    let batFirstCapId = setupTeam1CaptainId;
+    let bowlFirstCapId = setupTeam2CaptainId;
 
     const tossWinnerName = tossWinner === 'team1' ? rawT1 : rawT2;
     const tossText = `${tossWinnerName} won the toss and elected to ${tossDecision} first`;
@@ -574,6 +646,8 @@ async function createNewMatch() {
         bowlFirstTeam = rawT1;
         batFirstSquad = [...setupTeam2Squad];
         bowlFirstSquad = [...setupTeam1Squad];
+        batFirstCapId = setupTeam2CaptainId;
+        bowlFirstCapId = setupTeam1CaptainId;
     }
 
     const scorecard = {
@@ -583,15 +657,17 @@ async function createNewMatch() {
         tossText: tossText,
         team1Squad: batFirstSquad,
         team2Squad: bowlFirstSquad,
+        team1CaptainId: batFirstCapId,
+        team2CaptainId: bowlFirstCapId,
         innings1: {
             battingTeam: batFirstTeam, bowlingTeam: bowlFirstTeam, runs: 0, wickets: 0, legalBalls: 0,
             extras: { wd: 0, nb: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null,
-            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
+            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overLogs: [], currentOverLog: null, overRunsTracker: 0
         },
         innings2: {
             battingTeam: bowlFirstTeam, bowlingTeam: batFirstTeam, runs: 0, wickets: 0, legalBalls: 0,
             extras: { wd: 0, nb: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null,
-            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
+            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overLogs: [], currentOverLog: null, overRunsTracker: 0
         }
     };
 
@@ -634,7 +710,7 @@ function undoLastBall() {
 }
 
 // ==========================================
-// 9. BALL-BY-BALL LIVE SCORING ENGINE (SELECT BUTTONS + CHANGE STRIKE BELOW CREASE)
+// 9. BALL-BY-BALL SCORING + DETAILED OVER LOGS TRACKING
 // ==========================================
 function getCurrentInnings() {
     return activeMatch.scorecard.currentInnings === 1
@@ -646,9 +722,40 @@ function getBattingTeamMaxWickets() {
     const sc = activeMatch.scorecard;
     const battingSquad = sc.currentInnings === 1 ? (sc.team1Squad || []) : (sc.team2Squad || []);
     if (battingSquad.length >= 2) {
-        return battingSquad.length - 1; // e.g., 6 players -> 5 wickets all-out
+        return battingSquad.length - 1;
     }
-    return 10; // Default standard 10 wickets if squad not pre-selected
+    return 10;
+}
+
+function appendBallToOverLog(inn, ballDisplay, runsAdded) {
+    if (!inn.overLogs) inn.overLogs = [];
+    const overNum = Math.floor((inn.legalBalls - (ballDisplay.includes('WD') || ballDisplay.includes('NB') ? 0 : 1)) / 6) + 1;
+
+    const striker = inn.batters.find(b => b.id === inn.strikerId);
+    const nonStriker = inn.batters.find(b => b.id === inn.nonStrikerId);
+    const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
+
+    if (!inn.currentOverLog || inn.currentOverLog.overNumber !== overNum) {
+        inn.currentOverLog = {
+            overNumber: overNum,
+            bowlerName: bowler ? bowler.name : 'Bowler',
+            battersList: [],
+            balls: [],
+            runs: 0,
+            scoreAtEnd: `${inn.runs}-${inn.wickets}`
+        };
+    }
+
+    if (bowler) inn.currentOverLog.bowlerName = bowler.name;
+    [striker, nonStriker].forEach(bt => {
+        if (bt && !inn.currentOverLog.battersList.includes(bt.name)) {
+            inn.currentOverLog.battersList.push(bt.name);
+        }
+    });
+
+    inn.currentOverLog.balls.push(ballDisplay);
+    inn.currentOverLog.runs += runsAdded;
+    inn.currentOverLog.scoreAtEnd = `${inn.runs}-${inn.wickets}`;
 }
 
 function renderLiveScoringScreen() {
@@ -677,8 +784,9 @@ function renderLiveScoringScreen() {
             <div class="row-between" style="flex-wrap:wrap; gap:6px;">
                 <span class="badge badge-live">● LIVE</span>
                 <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                    <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${activeMatch.id}', 'overs')">📊 Overs</button>
                     <button class="btn-secondary btn-sm" onclick="openEditTeamsModal()">👥 Teams</button>
-                    <button class="btn-secondary btn-sm" onclick="openBabyOverModal()">🍼 Overs</button>
+                    <button class="btn-secondary btn-sm" onclick="openBabyOverModal()">🍼 Overs+</button>
                     <button class="btn-danger btn-sm" onclick="openMatchEndOptions()">🏁 End</button>
                 </div>
             </div>
@@ -698,7 +806,7 @@ function renderLiveScoringScreen() {
                         <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('striker')">Select</button>
                     </div>
                     <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
-                        ${striker ? `${renderPlayerAvatarHtml(striker.id, striker.name, 22)} <span>${striker.name} (${striker.runs}/${striker.balls})</span>` : '⚠️ Select Striker'}
+                        ${striker ? `${renderPlayerAvatarHtml(striker.id, striker.name, 22)} <span>${formatNameWithCap(striker.id, striker.name)} (${striker.runs}/${striker.balls})</span>` : '⚠️ Select Striker'}
                     </div>
                 </div>
                 <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #334155;">
@@ -707,12 +815,11 @@ function renderLiveScoringScreen() {
                         <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('non_striker')">Select</button>
                     </div>
                     <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
-                        ${nonStriker ? `${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 22)} <span>${nonStriker.name} (${nonStriker.runs}/${nonStriker.balls})</span>` : '⚠️ Select Non-Striker'}
+                        ${nonStriker ? `${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 22)} <span>${formatNameWithCap(nonStriker.id, nonStriker.name)} (${nonStriker.runs}/${nonStriker.balls})</span>` : '⚠️ Select Non-Striker'}
                     </div>
                 </div>
             </div>
 
-            <!-- CHANGE STRIKE BUTTON DIRECTLY BELOW STRIKER & NON-STRIKER -->
             <div style="margin-top:8px;">
                 <button class="btn-secondary" style="width:100%; padding:7px; font-size:0.82rem; font-weight:700; border:1px dashed #475569;" onclick="swapStrike()">
                     ⇄ Change Strike
@@ -725,7 +832,7 @@ function renderLiveScoringScreen() {
                     <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('bowler')">Select</button>
                 </div>
                 <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
-                    ${bowler ? `${renderPlayerAvatarHtml(bowler.id, bowler.name, 22)} <span>${bowler.name} (${Math.floor(bowler.balls / 6)}.${bowler.balls % 6} Ov, ${bowler.runs}R, ${bowler.wickets}W)</span>` : '⚠️ Select Bowler'}
+                    ${bowler ? `${renderPlayerAvatarHtml(bowler.id, bowler.name, 22)} <span>${formatNameWithCap(bowler.id, bowler.name)} (${Math.floor(bowler.balls / 6)}.${bowler.balls % 6} Ov, ${bowler.runs}R, ${bowler.wickets}W)</span>` : '⚠️ Select Bowler'}
                 </div>
             </div>
 
@@ -790,7 +897,10 @@ function recordLegalBall(runs) {
         bowler.balls += 1;
     }
 
-    inn.ballsHistory.push(String(runs));
+    const ballStr = String(runs);
+    inn.ballsHistory.push(ballStr);
+    appendBallToOverLog(inn, ballStr, runs);
+
     if (runs % 2 === 1) {
         const temp = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
@@ -840,7 +950,10 @@ function recordExtraBall(type, runsScored) {
     }
     if (bowler) bowler.runs += runsScored;
 
-    inn.ballsHistory.push(runsScored > 0 ? `${runsScored}${type}` : type);
+    const ballStr = runsScored > 0 ? `${runsScored}${type}` : type;
+    inn.ballsHistory.push(ballStr);
+    appendBallToOverLog(inn, ballStr, runsScored);
+
     if (runsScored % 2 === 1) {
         const temp = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
@@ -934,6 +1047,7 @@ function processStandardWicket(type) {
 
     const ballLabel = type === 'Bowled' ? 'W(B)' : (type === 'Caught' ? 'W(C)' : 'W(St)');
     inn.ballsHistory.push(ballLabel);
+    appendBallToOverLog(inn, 'W', 0);
     inn.strikerId = null;
 
     closeModal('popupModal');
@@ -966,6 +1080,10 @@ function confirmRunOut() {
         bowler.balls += 1;
     }
 
+    const ballLabel = completedRuns > 0 ? `${completedRuns}+W(RO)` : 'W(RO)';
+    inn.ballsHistory.push(ballLabel);
+    appendBallToOverLog(inn, completedRuns > 0 ? `${completedRuns}+W` : 'W', completedRuns);
+
     if (completedRuns % 2 === 1) {
         const tempId = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
@@ -984,9 +1102,6 @@ function confirmRunOut() {
         if (inn.nonStrikerId === nonStriker.id) inn.nonStrikerId = null;
     }
 
-    const ballLabel = completedRuns > 0 ? `${completedRuns}+W(RO)` : 'W(RO)';
-    inn.ballsHistory.push(ballLabel);
-
     closeModal('popupModal');
     checkOverAndInningsState();
     syncMatchToSupabase();
@@ -994,20 +1109,28 @@ function confirmRunOut() {
 }
 
 // ==========================================
-// 10. OVER COMPLETION (NO CONSECUTIVE BOWLER), ALL-OUT & AUTO WIN
+// 10. OVER COMPLETION, ALL-OUT & MATCH RESULT
 // ==========================================
+function finalizeCurrentOverLog(inn) {
+    if (inn.currentOverLog) {
+        if (!inn.overLogs) inn.overLogs = [];
+        inn.overLogs.push({ ...inn.currentOverLog });
+        inn.currentOverLog = null;
+    }
+}
+
 function checkOverAndInningsState() {
     const sc = activeMatch.scorecard;
     const inn = getCurrentInnings();
     const maxBalls = getMatchOvers(activeMatch) * 6;
     const maxWickets = getBattingTeamMaxWickets();
 
-    // 1. Check Over Completion (record lastBowlerId so same bowler cannot bowl next over)
     if (inn.legalBalls > 0 && inn.legalBalls % 6 === 0) {
         const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
         if (bowler && (inn.overRunsTracker || 0) === 0) bowler.maidens += 1;
         inn.overRunsTracker = 0;
 
+        finalizeCurrentOverLog(inn);
         inn.lastBowlerId = inn.currentBowlerId;
         inn.currentBowlerId = null;
 
@@ -1016,21 +1139,21 @@ function checkOverAndInningsState() {
         inn.nonStrikerId = temp;
     }
 
-    // 2. Check 2nd Innings Target Chased
     if (sc.currentInnings === 2) {
         const target = sc.innings1.runs + 1;
         if (inn.runs >= target) {
+            finalizeCurrentOverLog(inn);
             const wicketsLeft = Math.max(1, maxWickets - inn.wickets);
             finishMatch(`${inn.battingTeam} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}!`);
             return;
         }
     }
 
-    // 3. Check All-Out (e.g., 5 wickets fallen in a 6-player team) OR Overs Finished
     const isAllOut = inn.wickets >= maxWickets;
     const isOversDone = inn.legalBalls >= maxBalls;
 
     if (isAllOut || isOversDone) {
+        finalizeCurrentOverLog(inn);
         if (sc.currentInnings === 1) {
             const reason = isAllOut ? `All Out (${inn.wickets} Wickets)!` : 'Overs Complete!';
             alert(`1st Innings ${reason} ${inn.battingTeam} scored ${inn.runs}/${inn.wickets}. Starting 2nd Innings.`);
@@ -1087,6 +1210,7 @@ function openMatchEndOptions() {
 }
 
 function declareFirstInnings() {
+    finalizeCurrentOverLog(getCurrentInnings());
     activeMatch.scorecard.currentInnings = 2;
     closeModal('popupModal');
     syncMatchToSupabase();
@@ -1096,12 +1220,14 @@ function declareFirstInnings() {
 function declareManualResult() {
     const res = prompt('Enter Match Result (e.g. Team A won by 15 runs):');
     if (!res) return;
+    finalizeCurrentOverLog(getCurrentInnings());
     closeModal('popupModal');
     finishMatch(res);
 }
 
 async function abandonCurrentMatch() {
     if (!confirm('Are you sure you want to abandon this match?')) return;
+    finalizeCurrentOverLog(getCurrentInnings());
     closeModal('popupModal');
     await finishMatch('Match Abandoned');
 }
@@ -1131,7 +1257,7 @@ async function updateMatchOvers() {
 }
 
 // ==========================================
-// 11. PLAYER SELECTION (BLOCKS PREVIOUS OVER BOWLER) & TEAM EDITING
+// 11. PLAYER SELECTION & LIVE TEAM / CAPTAIN EDITING
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1146,13 +1272,10 @@ function openSelectPlayerModal(role) {
         squad = allPlayers.map(p => ({ id: p.id, name: p.name }));
     }
 
-    // Filter out previous over bowler if other bowlers are available
     let filteredSquad = squad;
     if (role === 'bowler' && inn.lastBowlerId) {
         const others = squad.filter(p => String(p.id) !== String(inn.lastBowlerId));
-        if (others.length > 0) {
-            filteredSquad = others;
-        }
+        if (others.length > 0) filteredSquad = others;
     }
 
     const listHtml = filteredSquad.map(p => {
@@ -1161,7 +1284,7 @@ function openSelectPlayerModal(role) {
         return `
             <button class="btn-secondary" style="text-align:left; padding:10px; width:100%; display:flex; align-items:center; gap:8px;" onclick="assignPlayerRole('${role}', '${p.id}', '${p.name.replace(/'/g, "\\'")}')">
                 ${renderPlayerAvatarHtml(p.id, p.name, 24)}
-                <span>${p.name}</span>
+                <span>${formatNameWithCap(p.id, p.name)}</span>
             </button>
         `;
     }).join('');
@@ -1234,18 +1357,30 @@ function assignPlayerRole(role, playerId, playerName) {
 }
 
 function openEditTeamsModal() {
+    const sc = activeMatch.scorecard;
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
-            <h3>👥 Edit Live Teams & Squads</h3>
+            <h3>👥 Edit Teams, Squads & Captains</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <div style="margin-top:10px;">
             <label>Batting First Team Name</label>
             <input type="text" id="editT1Name" class="input-field" value="${activeMatch.team1_name}">
-            <label style="margin-top:8px; display:block;">Bowling First Team Name</label>
+            <label style="margin-top:6px; display:block; font-size:0.8rem; color:#facc15;">👑 Captain (${activeMatch.team1_name}):</label>
+            <select id="editT1Cap" class="input-field" style="margin-top:3px;">
+                <option value="">-- Select Captain --</option>
+                ${(sc.team1Squad || []).map(p => `<option value="${p.id}" ${String(p.id) === String(sc.team1CaptainId) ? 'selected' : ''}>${p.name}</option>`).join('')}
+            </select>
+
+            <label style="margin-top:10px; display:block;">Bowling First Team Name</label>
             <input type="text" id="editT2Name" class="input-field" value="${activeMatch.team2_name}">
+            <label style="margin-top:6px; display:block; font-size:0.8rem; color:#facc15;">👑 Captain (${activeMatch.team2_name}):</label>
+            <select id="editT2Cap" class="input-field" style="margin-top:3px;">
+                <option value="">-- Select Captain --</option>
+                ${(sc.team2Squad || []).map(p => `<option value="${p.id}" ${String(p.id) === String(sc.team2CaptainId) ? 'selected' : ''}>${p.name}</option>`).join('')}
+            </select>
         </div>
-        <div style="margin-top:12px;">
+        <div style="margin-top:12px; border-top:1px solid #334155; padding-top:10px;">
             <label>Select Player to Add to Squad:</label>
             <select id="addSquadPlayerSelect" class="input-field" style="margin-top:4px;">
                 <option value="">-- Choose Player --</option>
@@ -1264,7 +1399,7 @@ function openEditTeamsModal() {
                 <button class="btn-secondary btn-sm" onclick="addGuestToLiveSquad(2)">+ Guest (${activeMatch.team2_name})</button>
             </div>
         </div>
-        <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Team Names</button>
+        <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Changes</button>
     `;
     openModal('popupModal');
 }
@@ -1279,9 +1414,8 @@ function addPlayerToLiveSquad(teamNum) {
     if (!targetSquad.some(p => String(p.id) === String(pId))) {
         targetSquad.push({ id: pId, name: pName });
         syncMatchToSupabase();
-        alert(`${pName} added!`);
+        openEditTeamsModal();
     }
-    sel.value = '';
 }
 
 function addGuestToLiveSquad(teamNum) {
@@ -1290,9 +1424,8 @@ function addGuestToLiveSquad(teamNum) {
     const sc = activeMatch.scorecard;
     const targetSquad = teamNum === 1 ? sc.team1Squad : sc.team2Squad;
     targetSquad.push({ id: 'guest_' + Date.now(), name: gName + ' (Guest)', isGuest: true });
-    document.getElementById('liveGuestNameInput').value = '';
     syncMatchToSupabase();
-    alert(`${gName} (Guest) added!`);
+    openEditTeamsModal();
 }
 
 async function saveLiveTeamNames() {
@@ -1302,6 +1435,8 @@ async function saveLiveTeamNames() {
 
     activeMatch.team1_name = t1;
     activeMatch.team2_name = t2;
+    activeMatch.scorecard.team1CaptainId = document.getElementById('editT1Cap').value;
+    activeMatch.scorecard.team2CaptainId = document.getElementById('editT2Cap').value;
     activeMatch.scorecard.innings1.battingTeam = t1;
     activeMatch.scorecard.innings1.bowlingTeam = t2;
     activeMatch.scorecard.innings2.battingTeam = t2;
@@ -1330,7 +1465,7 @@ async function syncMatchToSupabase() {
 }
 
 // ==========================================
-// 12. PUBLIC VIEWS: RECENT, HISTORY & SCORECARD WITH PHOTO ZOOM
+// 12. PUBLIC VIEWS: RECENT, HISTORY & SCORECARD WITH CRICBUZZ-STYLE OVERS TAB
 // ==========================================
 function renderRecentMatchesView() {
     const container = document.getElementById('appContainer');
@@ -1391,7 +1526,8 @@ function renderMatchCardItem(m) {
             <div class="row-between">
                 <span style="font-size:0.78rem; color:#94a3b8;">📅 ${dateStr}</span>
                 <div style="display:flex; gap:6px;">
-                    <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${m.id}')">Scorecard</button>
+                    <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${m.id}', 'overs')">Overs</button>
+                    <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${m.id}', 'scorecard')">Scorecard</button>
                     ${deleteBtn}
                 </div>
             </div>
@@ -1411,7 +1547,94 @@ async function deleteMatchById(matchId) {
     renderCurrentView();
 }
 
-function openMatchScorecardModal(matchId) {
+// Reconstructs over-by-over logs even for older matches that didn't store overLogs
+function getInningsOverLogs(inn) {
+    if (!inn) return [];
+    const logs = [...(inn.overLogs || [])];
+    if (inn.currentOverLog && inn.currentOverLog.balls && inn.currentOverLog.balls.length > 0) {
+        logs.push(inn.currentOverLog);
+    }
+    if (logs.length > 0) return logs;
+
+    // Fallback reconstruction from ballsHistory for older matches
+    const history = inn.ballsHistory || [];
+    if (history.length === 0) return [];
+    const reconstructed = [];
+    let curOv = { overNumber: 1, bowlerName: 'Bowler', battersList: [], balls: [], runs: 0, scoreAtEnd: `${inn.runs}-${inn.wickets}` };
+    let legalCount = 0;
+    history.forEach(b => {
+        curOv.balls.push(b);
+        const numMatch = b.match(/^(\d+)/);
+        if (numMatch) curOv.runs += parseInt(numMatch[1], 10);
+        if (!b.includes('WD') && !b.includes('NB')) {
+            legalCount += 1;
+            if (legalCount % 6 === 0) {
+                reconstructed.push({ ...curOv });
+                curOv = { overNumber: Math.floor(legalCount / 6) + 1, bowlerName: 'Bowler', battersList: [], balls: [], runs: 0, scoreAtEnd: `${inn.runs}-${inn.wickets}` };
+            }
+        }
+    });
+    if (curOv.balls.length > 0) reconstructed.push(curOv);
+    return reconstructed;
+}
+
+function renderOversHighlightsHtml(match) {
+    const sc = match.scorecard;
+    const renderInnOvers = (inn, label) => {
+        if (!inn) return '';
+        const logs = getInningsOverLogs(inn);
+        if (logs.length === 0) return '';
+        // Show latest overs first (just like Cricbuzz screenshot)
+        const reversed = [...logs].reverse();
+        const rowsHtml = reversed.map(ov => {
+            const battersStr = (ov.battersList && ov.battersList.length > 0) ? ` to ${ov.battersList.join(' & ')}` : '';
+            const ballsHtml = (ov.balls || []).map(b => {
+                const disp = b === '0' ? '•' : b;
+                let cls = 'ov-ball';
+                if (b === '4' || b.startsWith('4')) cls += ' b-4';
+                else if (b === '6' || b.startsWith('6')) cls += ' b-6';
+                else if (b.includes('W')) cls += ' b-w';
+                else if (b.includes('WD') || b.includes('NB')) cls += ' b-ex';
+                return `<span class="${cls}">${disp}</span>`;
+            }).join('');
+
+            return `
+                <div class="ov-row">
+                    <div class="ov-left">
+                        <div class="ov-num">Ov ${ov.overNumber}</div>
+                        <div class="ov-score">${ov.scoreAtEnd || ''}</div>
+                    </div>
+                    <div>
+                        <div class="ov-desc">${ov.bowlerName}${battersStr}</div>
+                        <div class="ov-balls">${ballsHtml}</div>
+                    </div>
+                    <div class="ov-runs">${ov.runs}</div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div style="margin-top:14px; background:#0f172a; border-radius:8px; border:1px solid #334155; overflow:hidden;">
+                <div style="background:#059669; color:#fff; padding:6px 12px; font-weight:700; font-size:0.82rem; display:inline-block; border-bottom-right-radius:8px;">
+                    ${inn.battingTeam} (${label})
+                </div>
+                <div style="display:grid; grid-template-columns:62px 1fr 44px; padding:6px 6px; font-size:0.74rem; color:#94a3b8; border-bottom:1px solid #1e293b; font-weight:600;">
+                    <div>Overs</div>
+                    <div>Balls</div>
+                    <div style="text-align:center;">Runs</div>
+                </div>
+                ${rowsHtml}
+            </div>
+        `;
+    };
+
+    return `
+        ${renderInnOvers(sc.innings2, '2nd Inn')}
+        ${renderInnOvers(sc.innings1, '1st Inn')}
+    `;
+}
+
+function openMatchScorecardModal(matchId, initialTab = 'scorecard') {
     const match = allMatches.find(m => m.id === matchId) || activeMatch;
     if (!match || !match.scorecard) return;
     const resText = match.result_text || match.scorecard.result_text || '';
@@ -1431,7 +1654,7 @@ function openMatchScorecardModal(matchId) {
                         <tbody>
                             ${(inn.batters || []).map(b => `
                                 <tr>
-                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(b.id, b.name, 22)}<strong>${b.name}</strong></td>
+                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(b.id, b.name, 22)}<strong>${formatNameWithCap(b.id, b.name, match)}</strong></td>
                                     <td style="font-size:0.75rem; color:#94a3b8;">${b.isOut ? b.dismissal : 'not out'}</td>
                                     <td><strong>${b.runs}</strong></td>
                                     <td>${b.balls}</td>
@@ -1448,7 +1671,7 @@ function openMatchScorecardModal(matchId) {
                         <tbody>
                             ${(inn.bowlers || []).map(bw => `
                                 <tr>
-                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bw.id, bw.name, 22)}<span>${bw.name}</span></td>
+                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bw.id, bw.name, 22)}<span>${formatNameWithCap(bw.id, bw.name, match)}</span></td>
                                     <td>${Math.floor(bw.balls / 6)}.${bw.balls % 6}</td>
                                     <td>${bw.maidens}</td>
                                     <td>${bw.runs}</td>
@@ -1464,17 +1687,45 @@ function openMatchScorecardModal(matchId) {
     };
 
     const liveBadge = match.status === 'live' ? `<span class="badge badge-live" style="margin-right:6px;">● LIVE</span>` : '';
+    const scorecardHtml = `
+        ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
+        ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
+    `;
+    const oversHtml = renderOversHighlightsHtml(match) || '<p style="color:#94a3b8; margin-top:12px;">No overs bowled yet.</p>';
+
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3 style="font-size:1.05rem;">${liveBadge}${match.team1_name} vs ${match.team2_name}</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <span style="color:#94a3b8; font-size:0.78rem;">📅 ${new Date(match.created_at).toLocaleDateString()}</span>
+        ${match.scorecard.tossText ? `<div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">🪙 ${match.scorecard.tossText}</div>` : ''}
         ${resText ? `<p style="color:#4ade80; font-weight:700; font-size:0.9rem; margin-top:4px;">🏆 ${resText}</p>` : ''}
-        ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
-        ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
+
+        <div class="stats-pill-bar" style="margin-top:10px; border-bottom:1px solid #334155; padding-bottom:8px;">
+            <button id="modalTabScorecard" class="stats-pill-btn ${initialTab === 'scorecard' ? 'active' : ''}" onclick="switchScorecardModalTab('scorecard')">📋 Scorecard</button>
+            <button id="modalTabOvers" class="stats-pill-btn ${initialTab === 'overs' ? 'active' : ''}" onclick="switchScorecardModalTab('overs')">📊 Overs</button>
+        </div>
+
+        <div id="modalBodyScorecard" style="display:${initialTab === 'scorecard' ? 'block' : 'none'};">
+            ${scorecardHtml}
+        </div>
+        <div id="modalBodyOvers" style="display:${initialTab === 'overs' ? 'block' : 'none'};">
+            ${oversHtml}
+        </div>
     `;
     openModal('popupModal');
+}
+
+function switchScorecardModalTab(tab) {
+    const scBtn = document.getElementById('modalTabScorecard');
+    const ovBtn = document.getElementById('modalTabOvers');
+    const scBody = document.getElementById('modalBodyScorecard');
+    const ovBody = document.getElementById('modalBodyOvers');
+    if (scBtn) scBtn.classList.toggle('active', tab === 'scorecard');
+    if (ovBtn) ovBtn.classList.toggle('active', tab === 'overs');
+    if (scBody) scBody.style.display = tab === 'scorecard' ? 'block' : 'none';
+    if (ovBody) ovBody.style.display = tab === 'overs' ? 'block' : 'none';
 }
 
 // ==========================================
@@ -1487,28 +1738,9 @@ function computeAllPlayerCareerStats() {
     allPlayers.forEach(p => {
         const key = String(p.id);
         statsMap[key] = {
-            id: key,
-            name: p.name,
-            nickname: p.nickname || '',
-            role: p.role || 'All-Rounder',
-            photo_url: p.photo_url || '',
-            matches: new Set(),
-            inningsBat: 0,
-            notOuts: 0,
-            runs: 0,
-            ballsFaced: 0,
-            fours: 0,
-            sixes: 0,
-            highestScore: 0,
-            thirties: 0,
-            fifties: 0,
-            inningsBowl: 0,
-            wickets: 0,
-            ballsBowled: 0,
-            runsConceded: 0,
-            maidens: 0,
-            bestWickets: 0,
-            bestRuns: 999
+            id: key, name: p.name, nickname: p.nickname || '', role: p.role || 'All-Rounder', photo_url: p.photo_url || '',
+            matches: new Set(), inningsBat: 0, notOuts: 0, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, highestScore: 0, thirties: 0, fifties: 0,
+            inningsBowl: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, maidens: 0, bestWickets: 0, bestRuns: 999
         };
         nameToId[p.name.trim().toLowerCase()] = key;
     });
