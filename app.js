@@ -14,6 +14,7 @@ let activeMatch = null;
 let undoStack = [];
 let liveSyncInterval = null;
 let currentView = 'live';
+let statsSubTab = 'both'; // 'both', 'batting', 'bowling'
 
 let setupTeam1Squad = [];
 let setupTeam2Squad = [];
@@ -24,7 +25,7 @@ function getMatchOvers(matchObj = activeMatch) {
 }
 
 // ==========================================
-// 2. INITIALIZATION & AUTHENTICATION
+// 2. INITIALIZATION & MOBILE-FIRST RESPONSIVE STYLES
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     injectResponsiveMobileStyles();
@@ -39,23 +40,32 @@ function injectResponsiveMobileStyles() {
     style.id = 'smartResponsiveStyles';
     style.textContent = `
         * { box-sizing: border-box; }
-        body, html { max-width: 100%; overflow-x: hidden; }
-        .resp-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-        .resp-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
-        .resp-grid-crease { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-        .compact-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        .compact-table th, .compact-table td { padding: 7px 5px; text-align: left; border-bottom: 1px solid #1e293b; white-space: nowrap; }
-        .compact-table td:first-child, .compact-table th:first-child { white-space: normal; }
+        html, body { max-width: 100vw; overflow-x: hidden; margin: 0; padding: 0; }
+        .container { width: 100%; max-width: 960px; margin: 0 auto; padding: 10px; }
+        .resp-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+        .resp-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+        .resp-grid-crease { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; }
+        .compact-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+        .compact-table th, .compact-table td { padding: 7px 4px; text-align: left; border-bottom: 1px solid #1e293b; }
+        .compact-table th { color: #94a3b8; font-weight: 600; font-size: 0.76rem; }
+        .stats-pill-bar { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+        .stats-pill-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .stats-pill-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
         @media (max-width: 600px) {
-            .container { padding: 8px !important; }
-            .card, .score-banner { padding: 12px !important; }
-            .compact-table { font-size: 0.78rem; }
-            .compact-table th, .compact-table td { padding: 6px 4px; }
+            .container { padding: 6px !important; }
+            .card, .score-banner { padding: 11px !important; border-radius: 10px !important; }
+            .compact-table { font-size: 0.75rem; }
+            .compact-table th, .compact-table td { padding: 5px 3px; }
+            .tabs-nav { gap: 4px !important; }
+            .tab-btn { padding: 7px 8px !important; font-size: 0.76rem !important; }
         }
     `;
     document.head.appendChild(style);
 }
 
+// ==========================================
+// 3. AUTHENTICATION & NAVBAR
+// ==========================================
 async function checkAuthSession() {
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user) {
@@ -137,7 +147,7 @@ async function logoutAdmin() {
 }
 
 // ==========================================
-// 3. PLAYER AVATAR & FULL-SCREEN PHOTO ZOOM LIGHTBOX
+// 4. PLAYER AVATAR & FULL-SCREEN PHOTO ZOOM LIGHTBOX
 // ==========================================
 function getPlayerPhotoUrl(playerId, playerName) {
     if (playerId) {
@@ -183,7 +193,7 @@ function openPhotoZoomModal(photoUrl, playerName) {
 }
 
 // ==========================================
-// 4. MODALS, DRAWER & NAVIGATION
+// 5. MODALS, DRAWER & NAVIGATION
 // ==========================================
 function openModal(modalId) {
     const el = document.getElementById(modalId);
@@ -241,7 +251,7 @@ function renderCurrentView() {
 }
 
 // ==========================================
-// 5. DATA LOADING & 1-SECOND AUTO-SYNC
+// 6. DATA LOADING & 1-SECOND AUTO-SYNC
 // ==========================================
 async function loadAllInitialData() {
     await Promise.all([fetchPlayers(), fetchMatches()]);
@@ -286,7 +296,7 @@ function startAutoSync() {
 }
 
 // ==========================================
-// 6. LIVE VIEW (PUBLIC + ADMIN SCORING WITH PHOTOS)
+// 7. LIVE VIEW (PUBLIC + ADMIN SCORING)
 // ==========================================
 function renderLiveView() {
     const container = document.getElementById('appContainer');
@@ -380,7 +390,7 @@ async function takeOverScoring() {
 }
 
 // ==========================================
-// 7. START LIVE MATCH SETUP (INSTANT AUTO-SELECT, NO +ADD BUTTON, RESPONSIVE)
+// 8. START LIVE MATCH SETUP (AUTO-SELECT + SCHEMA-SAFE INSERT)
 // ==========================================
 function renderStartMatchView() {
     if (!currentUser) return goHome();
@@ -388,7 +398,7 @@ function renderStartMatchView() {
 
     container.innerHTML = `
         <div class="card">
-            <h2 style="font-size:1.2rem;">🏏 Start New Live Match</h2>
+            <h2 style="font-size:1.15rem;">🏏 Start New Live Match</h2>
             <p style="color:#94a3b8; font-size:0.82rem; margin-bottom:12px;">Select player from dropdown to add immediately (Common & Guest supported).</p>
 
             <div class="resp-grid-2">
@@ -424,7 +434,6 @@ function renderStartMatchView() {
             </div>
 
             <div class="resp-grid-2" style="margin-top:14px;">
-                <!-- TEAM 1 -->
                 <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
                     <h4 style="color:#38bdf8; margin-bottom:6px; font-size:0.95rem;">Team 1 Squad (<span id="t1Count">0</span>)</h4>
                     <select id="regPlayerSelect1" class="input-field" onchange="addRegPlayerToSetup(1)" style="width:100%;">
@@ -438,7 +447,6 @@ function renderStartMatchView() {
                     <div id="setupSquadList1" style="margin-top:8px; display:flex; flex-direction:column; gap:5px; max-height:170px; overflow-y:auto;"></div>
                 </div>
 
-                <!-- TEAM 2 -->
                 <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
                     <h4 style="color:#facc15; margin-bottom:6px; font-size:0.95rem;">Team 2 Squad (<span id="t2Count">0</span>)</h4>
                     <select id="regPlayerSelect2" class="input-field" onchange="addRegPlayerToSetup(2)" style="width:100%;">
@@ -453,7 +461,7 @@ function renderStartMatchView() {
                 </div>
             </div>
 
-            <button class="btn-success" style="width:100%; margin-top:16px; padding:12px; font-size:1rem; font-weight:700;" onclick="createNewMatch()">
+            <button id="startMatchSubmitBtn" class="btn-success" style="width:100%; margin-top:16px; padding:12px; font-size:1rem; font-weight:700;" onclick="createNewMatch()">
                 🚀 Start Live Match Now
             </button>
         </div>
@@ -514,7 +522,7 @@ function renderSetupSquadLists() {
         const commonTag = isCommon ? `<span style="color:#facc15; font-size:0.72rem; font-weight:700;"> (Common)</span>` : '';
         return `
             <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:5px 8px; border-radius:6px; font-size:0.82rem;">
-                <span style="display:flex; align-items:center; gap:6px; overflow:hidden;">${renderPlayerAvatarHtml(p.id, p.name, 20)} <span style="truncate">${idx + 1}. ${p.name}${commonTag}</span></span>
+                <span style="display:flex; align-items:center; gap:6px; overflow:hidden;">${renderPlayerAvatarHtml(p.id, p.name, 20)} <span>${idx + 1}. ${p.name}${commonTag}</span></span>
                 <button type="button" onclick="removePlayerFromSetup(${teamNum}, ${idx})" style="background:transparent; border:none; color:#f87171; cursor:pointer; font-weight:bold; padding:0 4px;">✕</button>
             </div>
         `;
@@ -537,6 +545,12 @@ async function createNewMatch() {
     const overs = parseInt(document.getElementById('matchOvers').value, 10) || 6;
 
     if (!rawT1 || !rawT2) return alert('Please enter both Team 1 and Team 2 names!');
+
+    const btn = document.getElementById('startMatchSubmitBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Starting Match...';
+    }
 
     const tossWinner = document.getElementById('tossWinnerSelect').value;
     const tossDecision = document.getElementById('tossDecisionSelect').value;
@@ -575,7 +589,8 @@ async function createNewMatch() {
         }
     };
 
-    const { data, error } = await sb.from('matches').insert([{
+    // Insert with total_overs (confirmed required column)
+    let { data, error } = await sb.from('matches').insert([{
         team1_name: batFirstTeam,
         team2_name: bowlFirstTeam,
         total_overs: overs,
@@ -583,7 +598,15 @@ async function createNewMatch() {
         scorecard: scorecard
     }]).select().single();
 
-    if (error) return alert('Error starting match: ' + error.message);
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🚀 Start Live Match Now';
+    }
+
+    if (error) {
+        alert('Error starting match: ' + error.message);
+        return;
+    }
 
     activeMatch = data;
     undoStack = [];
@@ -604,7 +627,7 @@ function undoLastBall() {
 }
 
 // ==========================================
-// 8. BALL-BY-BALL LIVE SCORING ENGINE (MOBILE & LAPTOP FIT)
+// 9. BALL-BY-BALL LIVE SCORING ENGINE
 // ==========================================
 function getCurrentInnings() {
     return activeMatch.scorecard.currentInnings === 1
@@ -810,7 +833,7 @@ function recordExtraBall(type, runsScored) {
 }
 
 // ==========================================
-// 8B. WICKET MODAL (BOWLED, CAUGHT, STUMPING, RUN OUT + STRIKER/NON-STRIKER + 0/1/2 RUNS)
+// 9B. WICKET & RUN-OUT MODAL
 // ==========================================
 function openWicketModal() {
     if (!validateCreaseReady()) return;
@@ -950,7 +973,7 @@ function confirmRunOut() {
 }
 
 // ==========================================
-// 9. OVER COMPLETION, INNINGS SWITCH & MATCH RESULT
+// 10. OVER COMPLETION, INNINGS SWITCH & MATCH RESULT
 // ==========================================
 function checkOverAndInningsState() {
     const sc = activeMatch.scorecard;
@@ -991,12 +1014,19 @@ function checkOverAndInningsState() {
 
 async function finishMatch(resultText) {
     activeMatch.status = 'completed';
-    activeMatch.result_text = resultText;
-    await sb.from('matches').update({
+    activeMatch.scorecard.result_text = resultText;
+    const { error } = await sb.from('matches').update({
         status: 'completed',
         result_text: resultText,
         scorecard: activeMatch.scorecard
     }).eq('id', activeMatch.id);
+
+    if (error) {
+        await sb.from('matches').update({
+            status: 'completed',
+            scorecard: activeMatch.scorecard
+        }).eq('id', activeMatch.id);
+    }
 
     alert(`🏆 Match Finished: ${resultText}`);
     activeMatch = null;
@@ -1065,7 +1095,7 @@ async function updateMatchOvers() {
 }
 
 // ==========================================
-// 10. PLAYER SELECTION & LIVE TEAM EDITING (AUTO-SELECT + COMMON + GUEST)
+// 11. PLAYER SELECTION & LIVE TEAM EDITING (AUTO-SELECT + COMMON + GUEST)
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1166,21 +1196,22 @@ function openEditTeamsModal() {
             <input type="text" id="editT2Name" class="input-field" value="${activeMatch.team2_name}">
         </div>
         <div style="margin-top:12px;">
-            <label>Add Registered / Common Player to Squad:</label>
+            <label>Select Player to Add to Squad:</label>
             <select id="addSquadPlayerSelect" class="input-field" style="margin-top:4px;">
+                <option value="">-- Choose Player --</option>
                 ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
             </select>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
-                <button class="btn-secondary btn-sm" onclick="addPlayerToLiveSquad(1)">+ Add to ${activeMatch.team1_name}</button>
-                <button class="btn-secondary btn-sm" onclick="addPlayerToLiveSquad(2)">+ Add to ${activeMatch.team2_name}</button>
+                <button class="btn-secondary btn-sm" onclick="addPlayerToLiveSquad(1)">+ ${activeMatch.team1_name}</button>
+                <button class="btn-secondary btn-sm" onclick="addPlayerToLiveSquad(2)">+ ${activeMatch.team2_name}</button>
             </div>
         </div>
         <div style="margin-top:12px; border-top:1px solid #334155; padding-top:10px;">
             <label>Add Guest Player to Live Squad:</label>
             <input type="text" id="liveGuestNameInput" class="input-field" placeholder="Guest player name" style="margin-top:4px;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
-                <button class="btn-secondary btn-sm" onclick="addGuestToLiveSquad(1)">+ Guest to ${activeMatch.team1_name}</button>
-                <button class="btn-secondary btn-sm" onclick="addGuestToLiveSquad(2)">+ Guest to ${activeMatch.team2_name}</button>
+                <button class="btn-secondary btn-sm" onclick="addGuestToLiveSquad(1)">+ Guest (${activeMatch.team1_name})</button>
+                <button class="btn-secondary btn-sm" onclick="addGuestToLiveSquad(2)">+ Guest (${activeMatch.team2_name})</button>
             </div>
         </div>
         <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="saveLiveTeamNames()">Save Team Names</button>
@@ -1191,6 +1222,7 @@ function openEditTeamsModal() {
 function addPlayerToLiveSquad(teamNum) {
     const sel = document.getElementById('addSquadPlayerSelect');
     const pId = sel.value;
+    if (!pId) return alert('Please select a player first.');
     const pName = sel.options[sel.selectedIndex].text;
     const sc = activeMatch.scorecard;
     const targetSquad = teamNum === 1 ? sc.team1Squad : sc.team2Squad;
@@ -1199,6 +1231,7 @@ function addPlayerToLiveSquad(teamNum) {
         syncMatchToSupabase();
         alert(`${pName} added!`);
     }
+    sel.value = '';
 }
 
 function addGuestToLiveSquad(teamNum) {
@@ -1241,7 +1274,7 @@ async function syncMatchToSupabase() {
 }
 
 // ==========================================
-// 11. PUBLIC VIEWS: RECENT, HISTORY & SCORECARD WITH PHOTO ZOOM
+// 12. PUBLIC VIEWS: RECENT, HISTORY & SCORECARD WITH PHOTO ZOOM
 // ==========================================
 function renderRecentMatchesView() {
     const container = document.getElementById('appContainer');
@@ -1292,6 +1325,7 @@ function renderMatchCardItem(m) {
     const sc = m.scorecard || {};
     const inn1 = sc.innings1 || { runs: 0, wickets: 0 };
     const inn2 = sc.innings2 || { runs: 0, wickets: 0 };
+    const resText = m.result_text || sc.result_text || 'Completed';
     const dateStr = new Date(m.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const isSuperAdmin = currentAdminProfile && currentAdminProfile.role === 'super_admin';
     const deleteBtn = isSuperAdmin ? `<button class="btn-danger btn-sm" onclick="deleteMatchById('${m.id}')">🗑️</button>` : '';
@@ -1308,7 +1342,7 @@ function renderMatchCardItem(m) {
             <div style="font-weight:700; font-size:0.98rem; margin-top:6px;">
                 ${m.team1_name} (${inn1.runs}/${inn1.wickets}) vs ${m.team2_name} (${inn2.runs}/${inn2.wickets})
             </div>
-            <div style="color:#4ade80; font-weight:600; font-size:0.85rem; margin-top:4px;">🏆 ${m.result_text || 'Completed'}</div>
+            <div style="color:#4ade80; font-weight:600; font-size:0.85rem; margin-top:4px;">🏆 ${resText}</div>
         </div>
     `;
 }
@@ -1324,6 +1358,7 @@ async function deleteMatchById(matchId) {
 function openMatchScorecardModal(matchId) {
     const match = allMatches.find(m => m.id === matchId) || activeMatch;
     if (!match || !match.scorecard) return;
+    const resText = match.result_text || match.scorecard.result_text || '';
 
     const renderInningsBlock = (inn, title) => {
         if (!inn) return '';
@@ -1334,7 +1369,7 @@ function openMatchScorecardModal(matchId) {
                     <h4 style="font-size:0.95rem;">${title}: ${inn.battingTeam}</h4>
                     <strong style="font-size:0.95rem;">${inn.runs}/${inn.wickets} (${overs})</strong>
                 </div>
-                <div style="margin-top:6px; overflow-x:auto;">
+                <div style="margin-top:6px;">
                     <table class="compact-table">
                         <thead><tr><th>Batter</th><th>Out</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
                         <tbody>
@@ -1351,7 +1386,7 @@ function openMatchScorecardModal(matchId) {
                         </tbody>
                     </table>
                 </div>
-                <div style="margin-top:10px; overflow-x:auto;">
+                <div style="margin-top:10px;">
                     <table class="compact-table">
                         <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
                         <tbody>
@@ -1379,7 +1414,7 @@ function openMatchScorecardModal(matchId) {
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
         <span style="color:#94a3b8; font-size:0.78rem;">📅 ${new Date(match.created_at).toLocaleDateString()}</span>
-        ${match.result_text ? `<p style="color:#4ade80; font-weight:700; font-size:0.9rem; margin-top:4px;">🏆 ${match.result_text}</p>` : ''}
+        ${resText ? `<p style="color:#4ade80; font-weight:700; font-size:0.9rem; margin-top:4px;">🏆 ${resText}</p>` : ''}
         ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
         ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
     `;
@@ -1387,8 +1422,13 @@ function openMatchScorecardModal(matchId) {
 }
 
 // ==========================================
-// 12. CAREER PLAYER STATS (MOBILE-FIT + CLICK-TO-ZOOM PHOTO)
+// 13. CAREER PLAYER STATS (COMPLETE BATTING + BOWLING RECORDS)
 // ==========================================
+function setStatsSubTab(mode) {
+    statsSubTab = mode;
+    renderPlayerStatsView();
+}
+
 function renderPlayerStatsView() {
     const container = document.getElementById('appContainer');
     const statsMap = {};
@@ -1397,8 +1437,27 @@ function renderPlayerStatsView() {
     allPlayers.forEach(p => {
         const key = String(p.id);
         statsMap[key] = {
-            id: key, name: p.name, nickname: p.nickname || '', role: p.role || 'All-Rounder', photo_url: p.photo_url || '',
-            matches: new Set(), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, ballsBowled: 0, runsConceded: 0
+            id: key,
+            name: p.name,
+            nickname: p.nickname || '',
+            role: p.role || 'All-Rounder',
+            photo_url: p.photo_url || '',
+            matches: new Set(),
+            // Batting stats
+            inningsBat: 0,
+            runs: 0,
+            ballsFaced: 0,
+            fours: 0,
+            sixes: 0,
+            highestScore: 0,
+            // Bowling stats
+            inningsBowl: 0,
+            wickets: 0,
+            ballsBowled: 0,
+            runsConceded: 0,
+            maidens: 0,
+            bestWickets: 0,
+            bestRuns: 999
         };
         nameToId[p.name.trim().toLowerCase()] = key;
     });
@@ -1419,69 +1478,127 @@ function renderPlayerStatsView() {
                 const entry = resolvePlayerStat(b.id, b.name);
                 if (entry) {
                     entry.matches.add(m.id);
-                    entry.runs += Number(b.runs || 0);
+                    entry.inningsBat += 1;
+                    const r = Number(b.runs || 0);
+                    entry.runs += r;
                     entry.ballsFaced += Number(b.balls || 0);
                     entry.fours += Number(b.fours || 0);
                     entry.sixes += Number(b.sixes || 0);
+                    if (r > entry.highestScore) entry.highestScore = r;
                 }
             });
             (inn.bowlers || []).forEach(bw => {
                 const entry = resolvePlayerStat(bw.id, bw.name);
                 if (entry) {
                     entry.matches.add(m.id);
-                    entry.wickets += Number(bw.wickets || 0);
+                    entry.inningsBowl += 1;
+                    const w = Number(bw.wickets || 0);
+                    const rc = Number(bw.runs || 0);
+                    entry.wickets += w;
                     entry.ballsBowled += Number(bw.balls || 0);
-                    entry.runsConceded += Number(bw.runs || 0);
+                    entry.runsConceded += rc;
+                    entry.maidens += Number(bw.maidens || 0);
+                    if (w > entry.bestWickets || (w === entry.bestWickets && w > 0 && rc < entry.bestRuns)) {
+                        entry.bestWickets = w;
+                        entry.bestRuns = rc;
+                    }
                 }
             });
         });
     });
 
-    const sortedStats = Object.values(statsMap).sort((a, b) => b.runs - a.runs || b.wickets - a.wickets);
-    const rows = sortedStats.map(s => {
-        const sr = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(0) : '0';
-        const econ = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(1) : '0.0';
-        const avatar = renderPlayerAvatarHtml(s.id, s.name, 30);
-        const editCol = currentUser ? `<td><button class="btn-secondary btn-sm" style="padding:3px 6px;" onclick="openEditPlayerModal('${s.id}')">✏️</button></td>` : '';
+    const allStatsList = Object.values(statsMap);
+    const battingSorted = [...allStatsList].sort((a, b) => b.runs - a.runs || b.highestScore - a.highestScore);
+    const bowlingSorted = [...allStatsList].sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded);
 
+    const battingRows = battingSorted.map(s => {
+        const sr = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(0) : '0';
+        const avatar = renderPlayerAvatarHtml(s.id, s.name, 28);
+        const editCol = currentUser ? `<td><button class="btn-secondary btn-sm" style="padding:3px 6px;" onclick="openEditPlayerModal('${s.id}')">✏️</button></td>` : '';
         return `
             <tr>
                 <td style="display:flex; align-items:center; gap:6px;">
                     ${avatar}
                     <div>
                         <strong>${s.name}</strong>
-                        <div style="font-size:0.7rem; color:#38bdf8;">${s.role}</div>
+                        <div style="font-size:0.68rem; color:#38bdf8;">${s.role}</div>
                     </div>
                 </td>
                 <td>${s.matches.size}</td>
                 <td><strong>${s.runs}</strong></td>
                 <td>${s.ballsFaced}</td>
                 <td>${s.fours}/${s.sixes}</td>
+                <td>${s.highestScore}</td>
                 <td>${sr}</td>
-                <td><strong>${s.wickets}</strong></td>
-                <td>${econ}</td>
                 ${editCol}
             </tr>
         `;
     }).join('');
 
+    const bowlingRows = bowlingSorted.map(s => {
+        const oversStr = `${Math.floor(s.ballsBowled / 6)}.${s.ballsBowled % 6}`;
+        const econ = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(1) : '0.0';
+        const bestFig = s.bestWickets > 0 ? `${s.bestWickets}/${s.bestRuns}` : '-';
+        const avatar = renderPlayerAvatarHtml(s.id, s.name, 28);
+        return `
+            <tr>
+                <td style="display:flex; align-items:center; gap:6px;">
+                    ${avatar}
+                    <div>
+                        <strong>${s.name}</strong>
+                        <div style="font-size:0.68rem; color:#facc15;">${s.role}</div>
+                    </div>
+                </td>
+                <td>${s.matches.size}</td>
+                <td>${oversStr}</td>
+                <td>${s.maidens}</td>
+                <td>${s.runsConceded}</td>
+                <td><strong>${s.wickets}</strong></td>
+                <td>${bestFig}</td>
+                <td>${econ}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const showBat = statsSubTab === 'both' || statsSubTab === 'batting';
+    const showBowl = statsSubTab === 'both' || statsSubTab === 'bowling';
+
     container.innerHTML = `
         <div class="card">
-            <h2 style="font-size:1.15rem;">📊 Career Players Stats</h2>
-            <div style="margin-top:10px; overflow-x:auto;">
+            <div class="row-between" style="flex-wrap:wrap; gap:8px;">
+                <h2 style="font-size:1.15rem;">📊 Career Players Stats</h2>
+                <div class="stats-pill-bar" style="margin-top:0;">
+                    <button class="stats-pill-btn ${statsSubTab === 'both' ? 'active' : ''}" onclick="setStatsSubTab('both')">All (Bat + Bowl)</button>
+                    <button class="stats-pill-btn ${statsSubTab === 'batting' ? 'active' : ''}" onclick="setStatsSubTab('batting')">🏏 Batting</button>
+                    <button class="stats-pill-btn ${statsSubTab === 'bowling' ? 'active' : ''}" onclick="setStatsSubTab('bowling')">🎯 Bowling</button>
+                </div>
+            </div>
+
+            ${showBat ? `
+                <h3 style="font-size:0.98rem; color:#38bdf8; margin-top:14px; margin-bottom:6px;">🏏 Batting Career Records</h3>
                 <table class="compact-table">
                     <thead>
-                        <tr><th>Player</th><th>M</th><th>R</th><th>B</th><th>4/6</th><th>SR</th><th>W</th><th>Ec</th>${currentUser ? '<th></th>' : ''}</tr>
+                        <tr><th>Player</th><th>M</th><th>Runs</th><th>BF</th><th>4/6</th><th>HS</th><th>SR</th>${currentUser ? '<th></th>' : ''}</tr>
                     </thead>
-                    <tbody>${rows || '<tr><td colspan="9">No players registered yet.</td></tr>'}</tbody>
+                    <tbody>${battingRows || '<tr><td colspan="8">No players registered yet.</td></tr>'}</tbody>
                 </table>
-            </div>
+            ` : ''}
+
+            ${showBowl ? `
+                <h3 style="font-size:0.98rem; color:#facc15; margin-top:18px; margin-bottom:6px;">🎯 Bowling Career Records</h3>
+                <table class="compact-table">
+                    <thead>
+                        <tr><th>Player</th><th>M</th><th>Ov</th><th>Mdn</th><th>Runs</th><th>Wkts</th><th>Best</th><th>Econ</th></tr>
+                    </thead>
+                    <tbody>${bowlingRows || '<tr><td colspan="8">No players registered yet.</td></tr>'}</tbody>
+                </table>
+            ` : ''}
         </div>
     `;
 }
 
 // ==========================================
-// 13. ADMIN DRAWER SECTIONS (PLAYERS, MATCHES, ADMINS, PASSWORD)
+// 14. ADMIN DRAWER SECTIONS (PLAYERS, MATCHES, ADMINS, PASSWORD)
 // ==========================================
 function renderManagePlayersView() {
     if (!currentUser) return goHome();
