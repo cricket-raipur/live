@@ -2,7 +2,7 @@
 // 1. SUPABASE CONFIGURATION & GLOBAL STATE
 // ==========================================
 const SUPABASE_URL = 'https://wwwrkbwycthgboqvljfy.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable__JjU5SFZFPvqLVbxpVXYJQ_v8s3CyNX';
+const SUPABASE_ANON_KEY = 'YAHAN_APNI_SUPABASE_ANON_KEY_PASTE_KAREIN';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -17,6 +17,11 @@ let currentView = 'live';
 
 let setupTeam1Squad = [];
 let setupTeam2Squad = [];
+
+function getMatchOvers(matchObj = activeMatch) {
+    if (!matchObj) return 6;
+    return Number((matchObj.scorecard && matchObj.scorecard.overs) || matchObj.overs || 6);
+}
 
 // ==========================================
 // 2. INITIALIZATION & AUTHENTICATION
@@ -282,13 +287,14 @@ function renderPublicLiveScoreboard() {
     const container = document.getElementById('appContainer');
     const sc = activeMatch.scorecard;
     const inn = sc.currentInnings === 1 ? sc.innings1 : sc.innings2;
+    const totalOvers = getMatchOvers(activeMatch);
     const oversText = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const nonStriker = inn.batters.find(b => b.id === inn.nonStrikerId);
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
     const targetHtml = sc.currentInnings === 2
-        ? `<div style="color:#facc15; font-weight:700; margin-top:6px;">Target: ${sc.innings1.runs + 1} | Need ${Math.max(0, (sc.innings1.runs + 1) - inn.runs)} runs in ${Math.max(0, (activeMatch.overs * 6) - inn.legalBalls)} balls</div>`
+        ? `<div style="color:#facc15; font-weight:700; margin-top:6px;">Target: ${sc.innings1.runs + 1} | Need ${Math.max(0, (sc.innings1.runs + 1) - inn.runs)} runs in ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
         : '';
 
     const recentBalls = (inn.ballsHistory || []).slice(-12).map(b => {
@@ -313,7 +319,7 @@ function renderPublicLiveScoreboard() {
             <h2 style="margin-top:8px;">${activeMatch.team1_name} vs ${activeMatch.team2_name}</h2>
             ${sc.tossText ? `<p style="font-size:0.82rem; color:#94a3b8; margin-top:2px;">🪙 ${sc.tossText}</p>` : ''}
             <div style="font-size:2.2rem; font-weight:800; margin:8px 0;">
-                ${inn.battingTeam}: ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${activeMatch.overs} Ov)</span>
+                ${inn.battingTeam}: ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
             </div>
             ${targetHtml}
             <div class="balls-strip" style="margin-top:12px;">${recentBalls || '<span style="color:#64748b;">Match just started</span>'}</div>
@@ -535,6 +541,7 @@ async function createNewMatch() {
 
     const scorecard = {
         currentInnings: 1,
+        overs: overs,
         activeScorerId: currentUser.id,
         tossText: tossText,
         team1Squad: batFirstSquad,
@@ -554,7 +561,6 @@ async function createNewMatch() {
     const { data, error } = await sb.from('matches').insert([{
         team1_name: batFirstTeam,
         team2_name: bowlFirstTeam,
-        overs: overs,
         status: 'live',
         scorecard: scorecard
     }]).select().single();
@@ -590,13 +596,14 @@ function getCurrentInnings() {
 
 function renderLiveScoringScreen() {
     const inn = getCurrentInnings();
+    const totalOvers = getMatchOvers(activeMatch);
     const oversText = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
     const striker = inn.batters.find(b => b.id === inn.strikerId);
     const nonStriker = inn.batters.find(b => b.id === inn.nonStrikerId);
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
     const targetBanner = activeMatch.scorecard.currentInnings === 2
-        ? `<div style="color:#facc15; font-weight:600; margin-top:4px;">Target: ${activeMatch.scorecard.innings1.runs + 1} | Need ${Math.max(0, (activeMatch.scorecard.innings1.runs + 1) - inn.runs)} off ${Math.max(0, (activeMatch.overs * 6) - inn.legalBalls)} balls</div>`
+        ? `<div style="color:#facc15; font-weight:600; margin-top:4px;">Target: ${activeMatch.scorecard.innings1.runs + 1} | Need ${Math.max(0, (activeMatch.scorecard.innings1.runs + 1) - inn.runs)} off ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
         : '';
 
     const recentBalls = (inn.ballsHistory || []).slice(-12).map(b => {
@@ -620,7 +627,7 @@ function renderLiveScoringScreen() {
             </div>
             <h2 style="margin-top:8px;">${inn.battingTeam} vs ${inn.bowlingTeam}</h2>
             <div style="font-size:2.1rem; font-weight:800; margin:6px 0;">
-                ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${activeMatch.overs} Ov)</span>
+                ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
             </div>
             ${targetBanner}
             <div class="balls-strip" style="margin-top:10px;">${recentBalls}</div>
@@ -930,7 +937,7 @@ function confirmRunOut() {
 function checkOverAndInningsState() {
     const sc = activeMatch.scorecard;
     const inn = getCurrentInnings();
-    const maxBalls = activeMatch.overs * 6;
+    const maxBalls = getMatchOvers(activeMatch) * 6;
 
     if (inn.legalBalls > 0 && inn.legalBalls % 6 === 0) {
         const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
@@ -1016,13 +1023,14 @@ async function abandonCurrentMatch() {
 }
 
 function openBabyOverModal() {
+    const currentOvers = getMatchOvers(activeMatch);
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>🍼 Adjust Overs (Baby Over)</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
-        <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Current Match Overs: <strong>${activeMatch.overs}</strong></p>
-        <input type="number" id="newOversInput" class="input-field" value="${activeMatch.overs}" min="1" max="50">
+        <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Current Match Overs: <strong>${currentOvers}</strong></p>
+        <input type="number" id="newOversInput" class="input-field" value="${currentOvers}" min="1" max="50">
         <button class="btn-primary" style="width:100%; margin-top:12px;" onclick="updateMatchOvers()">Update Overs</button>
     `;
     openModal('popupModal');
@@ -1031,8 +1039,8 @@ function openBabyOverModal() {
 async function updateMatchOvers() {
     const val = parseInt(document.getElementById('newOversInput').value, 10);
     if (!val || val < 1) return;
-    activeMatch.overs = val;
-    await sb.from('matches').update({ overs: val }).eq('id', activeMatch.id);
+    activeMatch.scorecard.overs = val;
+    await sb.from('matches').update({ scorecard: activeMatch.scorecard }).eq('id', activeMatch.id);
     closeModal('popupModal');
     renderLiveScoringScreen();
 }
