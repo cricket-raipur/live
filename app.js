@@ -14,7 +14,7 @@ let activeMatch = null;
 let undoStack = [];
 let liveSyncInterval = null;
 let currentView = 'live';
-let statsSubTab = 'both'; // 'both', 'batting', 'bowling'
+let statsSubTab = 'both';
 
 let setupTeam1Squad = [];
 let setupTeam2Squad = [];
@@ -586,12 +586,12 @@ async function createNewMatch() {
         innings1: {
             battingTeam: batFirstTeam, bowlingTeam: bowlFirstTeam, runs: 0, wickets: 0, legalBalls: 0,
             extras: { wd: 0, nb: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null,
-            batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
+            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
         },
         innings2: {
             battingTeam: bowlFirstTeam, bowlingTeam: batFirstTeam, runs: 0, wickets: 0, legalBalls: 0,
             extras: { wd: 0, nb: 0 }, strikerId: null, nonStrikerId: null, currentBowlerId: null,
-            batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
+            lastBowlerId: null, batters: [], bowlers: [], ballsHistory: [], overRunsTracker: 0
         }
     };
 
@@ -634,12 +634,21 @@ function undoLastBall() {
 }
 
 // ==========================================
-// 9. BALL-BY-BALL LIVE SCORING ENGINE
+// 9. BALL-BY-BALL LIVE SCORING ENGINE (SELECT BUTTONS + CHANGE STRIKE BELOW CREASE)
 // ==========================================
 function getCurrentInnings() {
     return activeMatch.scorecard.currentInnings === 1
         ? activeMatch.scorecard.innings1
         : activeMatch.scorecard.innings2;
+}
+
+function getBattingTeamMaxWickets() {
+    const sc = activeMatch.scorecard;
+    const battingSquad = sc.currentInnings === 1 ? (sc.team1Squad || []) : (sc.team2Squad || []);
+    if (battingSquad.length >= 2) {
+        return battingSquad.length - 1; // e.g., 6 players -> 5 wickets all-out
+    }
+    return 10; // Default standard 10 wickets if squad not pre-selected
 }
 
 function renderLiveScoringScreen() {
@@ -686,7 +695,7 @@ function renderLiveScoringScreen() {
                 <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #38bdf8;">
                     <div class="row-between">
                         <span style="font-size:0.75rem; color:#38bdf8; font-weight:700;">STRIKER *</span>
-                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('striker')">Change</button>
+                        <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('striker')">Select</button>
                     </div>
                     <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
                         ${striker ? `${renderPlayerAvatarHtml(striker.id, striker.name, 22)} <span>${striker.name} (${striker.runs}/${striker.balls})</span>` : '⚠️ Select Striker'}
@@ -695,7 +704,7 @@ function renderLiveScoringScreen() {
                 <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #334155;">
                     <div class="row-between">
                         <span style="font-size:0.75rem; color:#94a3b8; font-weight:700;">NON-STRIKER</span>
-                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('non_striker')">Change</button>
+                        <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('non_striker')">Select</button>
                     </div>
                     <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
                         ${nonStriker ? `${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 22)} <span>${nonStriker.name} (${nonStriker.runs}/${nonStriker.balls})</span>` : '⚠️ Select Non-Striker'}
@@ -703,13 +712,17 @@ function renderLiveScoringScreen() {
                 </div>
             </div>
 
+            <!-- CHANGE STRIKE BUTTON DIRECTLY BELOW STRIKER & NON-STRIKER -->
+            <div style="margin-top:8px;">
+                <button class="btn-secondary" style="width:100%; padding:7px; font-size:0.82rem; font-weight:700; border:1px dashed #475569;" onclick="swapStrike()">
+                    ⇄ Change Strike
+                </button>
+            </div>
+
             <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #facc15; margin-top:8px;">
                 <div class="row-between" style="flex-wrap:wrap; gap:4px;">
                     <span style="font-size:0.75rem; color:#facc15; font-weight:700;">BOWLER</span>
-                    <div style="display:flex; gap:5px;">
-                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="swapStrike()">⇄ Swap</button>
-                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('bowler')">Change</button>
-                    </div>
+                    <button class="btn-primary btn-sm" style="padding:3px 8px; font-size:0.75rem;" onclick="openSelectPlayerModal('bowler')">Select</button>
                 </div>
                 <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
                     ${bowler ? `${renderPlayerAvatarHtml(bowler.id, bowler.name, 22)} <span>${bowler.name} (${Math.floor(bowler.balls / 6)}.${bowler.balls % 6} Ov, ${bowler.runs}R, ${bowler.wickets}W)</span>` : '⚠️ Select Bowler'}
@@ -746,6 +759,7 @@ function validateCreaseReady() {
 
 function swapStrike() {
     const inn = getCurrentInnings();
+    if (!inn.strikerId && !inn.nonStrikerId) return;
     const temp = inn.strikerId;
     inn.strikerId = inn.nonStrikerId;
     inn.nonStrikerId = temp;
@@ -980,41 +994,56 @@ function confirmRunOut() {
 }
 
 // ==========================================
-// 10. OVER COMPLETION, INNINGS SWITCH & MATCH RESULT
+// 10. OVER COMPLETION (NO CONSECUTIVE BOWLER), ALL-OUT & AUTO WIN
 // ==========================================
 function checkOverAndInningsState() {
     const sc = activeMatch.scorecard;
     const inn = getCurrentInnings();
     const maxBalls = getMatchOvers(activeMatch) * 6;
+    const maxWickets = getBattingTeamMaxWickets();
 
+    // 1. Check Over Completion (record lastBowlerId so same bowler cannot bowl next over)
     if (inn.legalBalls > 0 && inn.legalBalls % 6 === 0) {
         const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
         if (bowler && (inn.overRunsTracker || 0) === 0) bowler.maidens += 1;
         inn.overRunsTracker = 0;
 
+        inn.lastBowlerId = inn.currentBowlerId;
+        inn.currentBowlerId = null;
+
         const temp = inn.strikerId;
         inn.strikerId = inn.nonStrikerId;
         inn.nonStrikerId = temp;
-        inn.currentBowlerId = null;
     }
 
+    // 2. Check 2nd Innings Target Chased
     if (sc.currentInnings === 2) {
         const target = sc.innings1.runs + 1;
         if (inn.runs >= target) {
-            const wicketsLeft = Math.max(1, (sc.team2Squad.length || 11) - 1 - inn.wickets);
-            finishMatch(`${inn.battingTeam} won by ${wicketsLeft} wickets!`);
+            const wicketsLeft = Math.max(1, maxWickets - inn.wickets);
+            finishMatch(`${inn.battingTeam} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}!`);
             return;
         }
     }
 
-    if (inn.legalBalls >= maxBalls) {
+    // 3. Check All-Out (e.g., 5 wickets fallen in a 6-player team) OR Overs Finished
+    const isAllOut = inn.wickets >= maxWickets;
+    const isOversDone = inn.legalBalls >= maxBalls;
+
+    if (isAllOut || isOversDone) {
         if (sc.currentInnings === 1) {
-            alert(`1st Innings Complete! ${inn.battingTeam} scored ${inn.runs}/${inn.wickets}. Starting 2nd Innings.`);
+            const reason = isAllOut ? `All Out (${inn.wickets} Wickets)!` : 'Overs Complete!';
+            alert(`1st Innings ${reason} ${inn.battingTeam} scored ${inn.runs}/${inn.wickets}. Starting 2nd Innings.`);
             sc.currentInnings = 2;
         } else {
-            if (inn.runs > sc.innings1.runs) finishMatch(`${inn.battingTeam} won!`);
-            else if (inn.runs < sc.innings1.runs) finishMatch(`${sc.innings1.battingTeam} won by ${sc.innings1.runs - inn.runs} runs!`);
-            else finishMatch('Match Tied!');
+            if (inn.runs > sc.innings1.runs) {
+                const wicketsLeft = Math.max(1, maxWickets - inn.wickets);
+                finishMatch(`${inn.battingTeam} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}!`);
+            } else if (inn.runs < sc.innings1.runs) {
+                finishMatch(`${sc.innings1.battingTeam} won by ${sc.innings1.runs - inn.runs} run${(sc.innings1.runs - inn.runs) > 1 ? 's' : ''}!`);
+            } else {
+                finishMatch('Match Tied!');
+            }
         }
     }
 }
@@ -1102,7 +1131,7 @@ async function updateMatchOvers() {
 }
 
 // ==========================================
-// 11. PLAYER SELECTION & LIVE TEAM EDITING
+// 11. PLAYER SELECTION (BLOCKS PREVIOUS OVER BOWLER) & TEAM EDITING
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1117,7 +1146,16 @@ function openSelectPlayerModal(role) {
         squad = allPlayers.map(p => ({ id: p.id, name: p.name }));
     }
 
-    const listHtml = squad.map(p => {
+    // Filter out previous over bowler if other bowlers are available
+    let filteredSquad = squad;
+    if (role === 'bowler' && inn.lastBowlerId) {
+        const others = squad.filter(p => String(p.id) !== String(inn.lastBowlerId));
+        if (others.length > 0) {
+            filteredSquad = others;
+        }
+    }
+
+    const listHtml = filteredSquad.map(p => {
         const alreadyOut = isBatting && inn.batters.some(b => String(b.id) === String(p.id) && b.isOut);
         if (alreadyOut) return '';
         return `
@@ -1128,11 +1166,16 @@ function openSelectPlayerModal(role) {
         `;
     }).join('');
 
+    const prevBowlerNote = (role === 'bowler' && inn.lastBowlerId)
+        ? `<p style="font-size:0.78rem; color:#facc15; margin-top:6px;">ℹ️ Previous over bowler is hidden (cannot bowl consecutive overs).</p>`
+        : '';
+
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
             <h3>Select ${role === 'striker' ? 'Striker' : (role === 'non_striker' ? 'Non-Striker' : 'Bowler')}</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
+        ${prevBowlerNote}
         <div style="display:flex; flex-direction:column; gap:6px; max-height:250px; overflow-y:auto; margin-top:10px;">
             ${listHtml || '<p style="color:#94a3b8;">No available players in squad.</p>'}
         </div>
@@ -1450,7 +1493,6 @@ function computeAllPlayerCareerStats() {
             role: p.role || 'All-Rounder',
             photo_url: p.photo_url || '',
             matches: new Set(),
-            // Batting
             inningsBat: 0,
             notOuts: 0,
             runs: 0,
@@ -1460,7 +1502,6 @@ function computeAllPlayerCareerStats() {
             highestScore: 0,
             thirties: 0,
             fifties: 0,
-            // Bowling
             inningsBowl: 0,
             wickets: 0,
             ballsBowled: 0,
@@ -1627,9 +1668,6 @@ function renderPlayerStatsView() {
     `;
 }
 
-// ==========================================
-// 13B. FULL PLAYER CAREER PROFILE PAGE (ON NAME CLICK)
-// ==========================================
 function openPlayerFullProfile(playerId) {
     const statsMap = computeAllPlayerCareerStats();
     const s = statsMap[String(playerId)];
@@ -1690,9 +1728,6 @@ function openPlayerFullProfile(playerId) {
     `;
 }
 
-// ==========================================
-// 13C. ICC-STYLE HEAD-TO-HEAD PLAYER COMPARISON
-// ==========================================
 function openPlayerComparisonModal(preselectP1 = '') {
     if (allPlayers.length < 2) {
         return alert('At least 2 registered players are needed to compare!');
