@@ -25,7 +25,7 @@ function getMatchOvers(matchObj = activeMatch) {
 }
 
 // ==========================================
-// 2. INITIALIZATION & MOBILE-FIRST RESPONSIVE STYLES
+// 2. INITIALIZATION & RESPONSIVE STYLES
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     injectResponsiveMobileStyles();
@@ -48,9 +48,15 @@ function injectResponsiveMobileStyles() {
         .compact-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
         .compact-table th, .compact-table td { padding: 7px 4px; text-align: left; border-bottom: 1px solid #1e293b; }
         .compact-table th { color: #94a3b8; font-weight: 600; font-size: 0.76rem; }
-        .stats-pill-bar { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-        .stats-pill-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .player-link { color: #f8fafc; font-weight: 700; cursor: pointer; text-decoration: none; }
+        .player-link:hover { color: #38bdf8; text-decoration: underline; }
+        .stats-pill-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .stats-pill-btn { padding: 6px 11px; border-radius: 20px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
         .stats-pill-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .icc-stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; text-align: center; }
+        .icc-stat-val { font-size: 1.25rem; font-weight: 800; color: #f8fafc; }
+        .icc-stat-lbl { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+        .cmp-win { color: #4ade80; font-weight: 800; }
         @media (max-width: 600px) {
             .container { padding: 6px !important; }
             .card, .score-banner { padding: 11px !important; border-radius: 10px !important; }
@@ -166,7 +172,7 @@ function renderPlayerAvatarHtml(playerId, playerName, size = 26) {
     const photoUrl = getPlayerPhotoUrl(playerId, playerName);
     const safeName = (playerName || 'Player').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     if (photoUrl) {
-        return `<img src="${photoUrl}" alt="${safeName}" title="Click to enlarge" onclick="event.stopPropagation(); openPhotoZoomModal('${photoUrl}', '${safeName}')" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; cursor:zoom-in; border:1.5px solid #38bdf8; flex-shrink:0; vertical-align:middle;">`;
+        return `<img src="${photoUrl}" alt="${safeName}" title="Click to enlarge photo" onclick="event.stopPropagation(); openPhotoZoomModal('${photoUrl}', '${safeName}')" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; cursor:zoom-in; border:1.5px solid #38bdf8; flex-shrink:0; vertical-align:middle;">`;
     }
     const initial = (playerName || 'P').trim().charAt(0).toUpperCase();
     return `<span style="display:inline-flex; width:${size}px; height:${size}px; border-radius:50%; background:#334155; color:#f8fafc; align-items:center; justify-content:center; font-weight:700; font-size:${Math.max(10, Math.floor(size * 0.45))}px; flex-shrink:0; vertical-align:middle;">${initial}</span>`;
@@ -390,7 +396,7 @@ async function takeOverScoring() {
 }
 
 // ==========================================
-// 8. START LIVE MATCH SETUP (AUTO-SELECT + SCHEMA-SAFE INSERT)
+// 8. START LIVE MATCH SETUP (AUTO-SELECT + ALL REQUIRED DB COLUMNS)
 // ==========================================
 function renderStartMatchView() {
     if (!currentUser) return goHome();
@@ -589,10 +595,11 @@ async function createNewMatch() {
         }
     };
 
-    // Insert with total_overs (confirmed required column)
-    let { data, error } = await sb.from('matches').insert([{
+    const { data, error } = await sb.from('matches').insert([{
         team1_name: batFirstTeam,
         team2_name: bowlFirstTeam,
+        team1_players: batFirstSquad,
+        team2_players: bowlFirstSquad,
         total_overs: overs,
         status: 'live',
         scorecard: scorecard
@@ -1095,7 +1102,7 @@ async function updateMatchOvers() {
 }
 
 // ==========================================
-// 11. PLAYER SELECTION & LIVE TEAM EDITING (AUTO-SELECT + COMMON + GUEST)
+// 11. PLAYER SELECTION & LIVE TEAM EDITING
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1260,6 +1267,8 @@ async function saveLiveTeamNames() {
     await sb.from('matches').update({
         team1_name: t1,
         team2_name: t2,
+        team1_players: activeMatch.scorecard.team1Squad,
+        team2_players: activeMatch.scorecard.team2Squad,
         scorecard: activeMatch.scorecard
     }).eq('id', activeMatch.id);
 
@@ -1270,7 +1279,11 @@ async function saveLiveTeamNames() {
 async function syncMatchToSupabase() {
     if (!activeMatch) return;
     if (currentUser) activeMatch.scorecard.activeScorerId = currentUser.id;
-    await sb.from('matches').update({ scorecard: activeMatch.scorecard }).eq('id', activeMatch.id);
+    await sb.from('matches').update({
+        team1_players: activeMatch.scorecard.team1Squad,
+        team2_players: activeMatch.scorecard.team2Squad,
+        scorecard: activeMatch.scorecard
+    }).eq('id', activeMatch.id);
 }
 
 // ==========================================
@@ -1422,15 +1435,9 @@ function openMatchScorecardModal(matchId) {
 }
 
 // ==========================================
-// 13. CAREER PLAYER STATS (COMPLETE BATTING + BOWLING RECORDS)
+// 13. CAREER PLAYER STATS + FULL PLAYER PROFILE + ICC COMPARISON
 // ==========================================
-function setStatsSubTab(mode) {
-    statsSubTab = mode;
-    renderPlayerStatsView();
-}
-
-function renderPlayerStatsView() {
-    const container = document.getElementById('appContainer');
+function computeAllPlayerCareerStats() {
     const statsMap = {};
     const nameToId = {};
 
@@ -1443,14 +1450,17 @@ function renderPlayerStatsView() {
             role: p.role || 'All-Rounder',
             photo_url: p.photo_url || '',
             matches: new Set(),
-            // Batting stats
+            // Batting
             inningsBat: 0,
+            notOuts: 0,
             runs: 0,
             ballsFaced: 0,
             fours: 0,
             sixes: 0,
             highestScore: 0,
-            // Bowling stats
+            thirties: 0,
+            fifties: 0,
+            // Bowling
             inningsBowl: 0,
             wickets: 0,
             ballsBowled: 0,
@@ -1479,12 +1489,15 @@ function renderPlayerStatsView() {
                 if (entry) {
                     entry.matches.add(m.id);
                     entry.inningsBat += 1;
+                    if (!b.isOut) entry.notOuts += 1;
                     const r = Number(b.runs || 0);
                     entry.runs += r;
                     entry.ballsFaced += Number(b.balls || 0);
                     entry.fours += Number(b.fours || 0);
                     entry.sixes += Number(b.sixes || 0);
                     if (r > entry.highestScore) entry.highestScore = r;
+                    if (r >= 50) entry.fifties += 1;
+                    else if (r >= 30) entry.thirties += 1;
                 }
             });
             (inn.bowlers || []).forEach(bw => {
@@ -1507,7 +1520,19 @@ function renderPlayerStatsView() {
         });
     });
 
+    return statsMap;
+}
+
+function setStatsSubTab(mode) {
+    statsSubTab = mode;
+    renderPlayerStatsView();
+}
+
+function renderPlayerStatsView() {
+    const container = document.getElementById('appContainer');
+    const statsMap = computeAllPlayerCareerStats();
     const allStatsList = Object.values(statsMap);
+
     const battingSorted = [...allStatsList].sort((a, b) => b.runs - a.runs || b.highestScore - a.highestScore);
     const bowlingSorted = [...allStatsList].sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded);
 
@@ -1520,7 +1545,7 @@ function renderPlayerStatsView() {
                 <td style="display:flex; align-items:center; gap:6px;">
                     ${avatar}
                     <div>
-                        <strong>${s.name}</strong>
+                        <span class="player-link" onclick="openPlayerFullProfile('${s.id}')">${s.name}</span>
                         <div style="font-size:0.68rem; color:#38bdf8;">${s.role}</div>
                     </div>
                 </td>
@@ -1545,7 +1570,7 @@ function renderPlayerStatsView() {
                 <td style="display:flex; align-items:center; gap:6px;">
                     ${avatar}
                     <div>
-                        <strong>${s.name}</strong>
+                        <span class="player-link" onclick="openPlayerFullProfile('${s.id}')">${s.name}</span>
                         <div style="font-size:0.68rem; color:#facc15;">${s.role}</div>
                     </div>
                 </td>
@@ -1566,12 +1591,17 @@ function renderPlayerStatsView() {
     container.innerHTML = `
         <div class="card">
             <div class="row-between" style="flex-wrap:wrap; gap:8px;">
-                <h2 style="font-size:1.15rem;">📊 Career Players Stats</h2>
-                <div class="stats-pill-bar" style="margin-top:0;">
-                    <button class="stats-pill-btn ${statsSubTab === 'both' ? 'active' : ''}" onclick="setStatsSubTab('both')">All (Bat + Bowl)</button>
-                    <button class="stats-pill-btn ${statsSubTab === 'batting' ? 'active' : ''}" onclick="setStatsSubTab('batting')">🏏 Batting</button>
-                    <button class="stats-pill-btn ${statsSubTab === 'bowling' ? 'active' : ''}" onclick="setStatsSubTab('bowling')">🎯 Bowling</button>
+                <div>
+                    <h2 style="font-size:1.15rem;">📊 Career Players Stats</h2>
+                    <p style="font-size:0.75rem; color:#94a3b8;">Tap photo to zoom • Tap player name for full profile</p>
                 </div>
+                <button class="btn-primary btn-sm" onclick="openPlayerComparisonModal()">⚖️ Compare Players</button>
+            </div>
+
+            <div class="stats-pill-bar" style="margin-top:10px;">
+                <button class="stats-pill-btn ${statsSubTab === 'both' ? 'active' : ''}" onclick="setStatsSubTab('both')">All (Bat + Bowl)</button>
+                <button class="stats-pill-btn ${statsSubTab === 'batting' ? 'active' : ''}" onclick="setStatsSubTab('batting')">🏏 Batting</button>
+                <button class="stats-pill-btn ${statsSubTab === 'bowling' ? 'active' : ''}" onclick="setStatsSubTab('bowling')">🎯 Bowling</button>
             </div>
 
             ${showBat ? `
@@ -1594,6 +1624,181 @@ function renderPlayerStatsView() {
                 </table>
             ` : ''}
         </div>
+    `;
+}
+
+// ==========================================
+// 13B. FULL PLAYER CAREER PROFILE PAGE (ON NAME CLICK)
+// ==========================================
+function openPlayerFullProfile(playerId) {
+    const statsMap = computeAllPlayerCareerStats();
+    const s = statsMap[String(playerId)];
+    if (!s) return;
+
+    const dismissals = Math.max(1, s.inningsBat - s.notOuts);
+    const batAvg = s.inningsBat > 0 ? (s.runs / dismissals).toFixed(1) : '0.0';
+    const batSR = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(1) : '0.0';
+
+    const oversStr = `${Math.floor(s.ballsBowled / 6)}.${s.ballsBowled % 6}`;
+    const bowlEcon = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(2) : '0.00';
+    const bowlAvg = s.wickets > 0 ? (s.runsConceded / s.wickets).toFixed(1) : '-';
+    const bestFig = s.bestWickets > 0 ? `${s.bestWickets}/${s.bestRuns}` : '-';
+
+    const container = document.getElementById('appContainer');
+    container.innerHTML = `
+        <div class="card">
+            <div class="row-between" style="margin-bottom:12px;">
+                <button class="btn-secondary btn-sm" onclick="renderPlayerStatsView()">← Back to Stats</button>
+                <button class="btn-primary btn-sm" onclick="openPlayerComparisonModal('${s.id}')">⚖️ Compare</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:14px; background:#0f172a; padding:14px; border-radius:10px; border:1px solid #334155;">
+                ${renderPlayerAvatarHtml(s.id, s.name, 68)}
+                <div>
+                    <h2 style="margin:0; font-size:1.3rem;">${s.name}</h2>
+                    ${s.nickname ? `<div style="color:#94a3b8; font-size:0.85rem;">"${s.nickname}"</div>` : ''}
+                    <span class="badge" style="margin-top:6px; display:inline-block; background:#1e293b; color:#38bdf8;">${s.role}</span>
+                </div>
+            </div>
+
+            <h3 style="font-size:1rem; color:#38bdf8; margin-top:16px; margin-bottom:8px;">🏏 Career Batting Summary</h3>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.matches.size}</div><div class="icc-stat-lbl">Matches</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.inningsBat}</div><div class="icc-stat-lbl">Innings</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val" style="color:#4ade80;">${s.runs}</div><div class="icc-stat-lbl">Runs</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.highestScore}</div><div class="icc-stat-lbl">Highest</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${batAvg}</div><div class="icc-stat-lbl">Average</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${batSR}</div><div class="icc-stat-lbl">Strike Rate</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.ballsFaced}</div><div class="icc-stat-lbl">Balls Faced</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.fours} / ${s.sixes}</div><div class="icc-stat-lbl">4s / 6s</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.fifties} / ${s.thirties}</div><div class="icc-stat-lbl">50s / 30s</div></div>
+            </div>
+
+            <h3 style="font-size:1rem; color:#facc15; margin-top:18px; margin-bottom:8px;">🎯 Career Bowling Summary</h3>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;">
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.inningsBowl}</div><div class="icc-stat-lbl">Innings</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${oversStr}</div><div class="icc-stat-lbl">Overs</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val" style="color:#facc15;">${s.wickets}</div><div class="icc-stat-lbl">Wickets</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${bestFig}</div><div class="icc-stat-lbl">Best Bowl</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${bowlEcon}</div><div class="icc-stat-lbl">Economy</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${bowlAvg}</div><div class="icc-stat-lbl">Bowl Avg</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.runsConceded}</div><div class="icc-stat-lbl">Runs Given</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.maidens}</div><div class="icc-stat-lbl">Maidens</div></div>
+                <div class="icc-stat-box"><div class="icc-stat-val">${s.notOuts}</div><div class="icc-stat-lbl">Not Outs</div></div>
+            </div>
+        </div>
+    `;
+}
+
+// ==========================================
+// 13C. ICC-STYLE HEAD-TO-HEAD PLAYER COMPARISON
+// ==========================================
+function openPlayerComparisonModal(preselectP1 = '') {
+    if (allPlayers.length < 2) {
+        return alert('At least 2 registered players are needed to compare!');
+    }
+    const p1Default = preselectP1 || String(allPlayers[0].id);
+    const p2Obj = allPlayers.find(p => String(p.id) !== p1Default) || allPlayers[1];
+    const p2Default = String(p2Obj.id);
+
+    const container = document.getElementById('appContainer');
+    container.innerHTML = `
+        <div class="card">
+            <div class="row-between" style="margin-bottom:12px;">
+                <h2 style="font-size:1.15rem;">⚖️ ICC Style Player Comparison</h2>
+                <button class="btn-secondary btn-sm" onclick="renderPlayerStatsView()">← Back</button>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div>
+                    <label style="font-size:0.75rem; color:#38bdf8;">Player 1</label>
+                    <select id="cmpPlayer1" class="input-field" onchange="renderComparisonTable()">
+                        ${allPlayers.map(p => `<option value="${p.id}" ${String(p.id) === p1Default ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.75rem; color:#facc15;">Player 2</label>
+                    <select id="cmpPlayer2" class="input-field" onchange="renderComparisonTable()">
+                        ${allPlayers.map(p => `<option value="${p.id}" ${String(p.id) === p2Default ? 'selected' : ''}>${p.name}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div id="comparisonResultArea" style="margin-top:14px;"></div>
+        </div>
+    `;
+    renderComparisonTable();
+}
+
+function renderComparisonTable() {
+    const id1 = document.getElementById('cmpPlayer1').value;
+    const id2 = document.getElementById('cmpPlayer2').value;
+    const statsMap = computeAllPlayerCareerStats();
+    const p1 = statsMap[id1];
+    const p2 = statsMap[id2];
+    if (!p1 || !p2) return;
+
+    const p1SR = p1.ballsFaced > 0 ? Number(((p1.runs / p1.ballsFaced) * 100).toFixed(1)) : 0;
+    const p2SR = p2.ballsFaced > 0 ? Number(((p2.runs / p2.ballsFaced) * 100).toFixed(1)) : 0;
+
+    const p1Econ = p1.ballsBowled > 0 ? Number((p1.runsConceded / (p1.ballsBowled / 6)).toFixed(2)) : 0;
+    const p2Econ = p2.ballsBowled > 0 ? Number((p2.runsConceded / (p2.ballsBowled / 6)).toFixed(2)) : 0;
+
+    const cmpRow = (label, v1, v2, lowerIsBetter = false) => {
+        let c1 = '', c2 = '';
+        if (v1 !== v2) {
+            if (lowerIsBetter) {
+                if (v1 > 0 && (v2 === 0 || v1 < v2)) c1 = 'cmp-win';
+                else if (v2 > 0) c2 = 'cmp-win';
+            } else {
+                if (v1 > v2) c1 = 'cmp-win';
+                else c2 = 'cmp-win';
+            }
+        }
+        return `
+            <tr>
+                <td style="text-align:center;" class="${c1}">${v1}</td>
+                <td style="text-align:center; color:#94a3b8; font-weight:600;">${label}</td>
+                <td style="text-align:center;" class="${c2}">${v2}</td>
+            </tr>
+        `;
+    };
+
+    document.getElementById('comparisonResultArea').innerHTML = `
+        <div style="display:grid; grid-template-columns:1fr auto 1fr; align-items:center; background:#0f172a; padding:12px; border-radius:10px; border:1px solid #334155; text-align:center;">
+            <div>
+                ${renderPlayerAvatarHtml(p1.id, p1.name, 54)}
+                <div style="font-weight:700; margin-top:6px; font-size:0.95rem;">${p1.name}</div>
+                <div style="font-size:0.72rem; color:#38bdf8;">${p1.role}</div>
+            </div>
+            <div style="font-weight:900; color:#facc15; font-size:1.1rem; padding:0 8px;">VS</div>
+            <div>
+                ${renderPlayerAvatarHtml(p2.id, p2.name, 54)}
+                <div style="font-weight:700; margin-top:6px; font-size:0.95rem;">${p2.name}</div>
+                <div style="font-size:0.72rem; color:#facc15;">${p2.role}</div>
+            </div>
+        </div>
+
+        <table class="compact-table" style="margin-top:12px;">
+            <thead>
+                <tr>
+                    <th style="text-align:center;">${p1.name}</th>
+                    <th style="text-align:center;">STAT</th>
+                    <th style="text-align:center;">${p2.name}</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${cmpRow('Matches', p1.matches.size, p2.matches.size)}
+                ${cmpRow('Bat Runs', p1.runs, p2.runs)}
+                ${cmpRow('Highest Score', p1.highestScore, p2.highestScore)}
+                ${cmpRow('Strike Rate', p1SR, p2SR)}
+                ${cmpRow('Fours (4s)', p1.fours, p2.fours)}
+                ${cmpRow('Sixes (6s)', p1.sixes, p2.sixes)}
+                ${cmpRow('Wickets', p1.wickets, p2.wickets)}
+                ${cmpRow('Economy', p1Econ, p2Econ, true)}
+                ${cmpRow('Maidens', p1.maidens, p2.maidens)}
+            </tbody>
+        </table>
     `;
 }
 
