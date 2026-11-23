@@ -20,17 +20,41 @@ let setupTeam2Squad = [];
 
 function getMatchOvers(matchObj = activeMatch) {
     if (!matchObj) return 6;
-    return Number((matchObj.scorecard && matchObj.scorecard.overs) || matchObj.overs || 6);
+    return Number(matchObj.total_overs || (matchObj.scorecard && matchObj.scorecard.total_overs) || matchObj.overs || 6);
 }
 
 // ==========================================
 // 2. INITIALIZATION & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
+    injectResponsiveMobileStyles();
     await checkAuthSession();
     await loadAllInitialData();
     startAutoSync();
 });
+
+function injectResponsiveMobileStyles() {
+    if (document.getElementById('smartResponsiveStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'smartResponsiveStyles';
+    style.textContent = `
+        * { box-sizing: border-box; }
+        body, html { max-width: 100%; overflow-x: hidden; }
+        .resp-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+        .resp-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+        .resp-grid-crease { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+        .compact-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .compact-table th, .compact-table td { padding: 7px 5px; text-align: left; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+        .compact-table td:first-child, .compact-table th:first-child { white-space: normal; }
+        @media (max-width: 600px) {
+            .container { padding: 8px !important; }
+            .card, .score-banner { padding: 12px !important; }
+            .compact-table { font-size: 0.78rem; }
+            .compact-table th, .compact-table td { padding: 6px 4px; }
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 async function checkAuthSession() {
     const { data: { session } } = await sb.auth.getSession();
@@ -128,14 +152,14 @@ function getPlayerPhotoUrl(playerId, playerName) {
     return '';
 }
 
-function renderPlayerAvatarHtml(playerId, playerName, size = 28) {
+function renderPlayerAvatarHtml(playerId, playerName, size = 26) {
     const photoUrl = getPlayerPhotoUrl(playerId, playerName);
     const safeName = (playerName || 'Player').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     if (photoUrl) {
-        return `<img src="${photoUrl}" alt="${safeName}" title="Click to enlarge photo" onclick="event.stopPropagation(); openPhotoZoomModal('${photoUrl}', '${safeName}')" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; cursor:zoom-in; border:1.5px solid #38bdf8; flex-shrink:0; vertical-align:middle;">`;
+        return `<img src="${photoUrl}" alt="${safeName}" title="Click to enlarge" onclick="event.stopPropagation(); openPhotoZoomModal('${photoUrl}', '${safeName}')" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; cursor:zoom-in; border:1.5px solid #38bdf8; flex-shrink:0; vertical-align:middle;">`;
     }
     const initial = (playerName || 'P').trim().charAt(0).toUpperCase();
-    return `<span style="display:inline-flex; width:${size}px; height:${size}px; border-radius:50%; background:#334155; color:#f8fafc; align-items:center; justify-content:center; font-weight:700; font-size:${Math.max(11, Math.floor(size * 0.45))}px; flex-shrink:0; vertical-align:middle;">${initial}</span>`;
+    return `<span style="display:inline-flex; width:${size}px; height:${size}px; border-radius:50%; background:#334155; color:#f8fafc; align-items:center; justify-content:center; font-weight:700; font-size:${Math.max(10, Math.floor(size * 0.45))}px; flex-shrink:0; vertical-align:middle;">${initial}</span>`;
 }
 
 function openPhotoZoomModal(photoUrl, playerName) {
@@ -144,15 +168,15 @@ function openPhotoZoomModal(photoUrl, playerName) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'photoZoomOverlay';
-        overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:99999; align-items:center; justify-content:center; flex-direction:column; padding:20px;';
+        overlay.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:99999; align-items:center; justify-content:center; flex-direction:column; padding:16px;';
         overlay.onclick = () => { overlay.style.display = 'none'; };
         document.body.appendChild(overlay);
     }
     overlay.innerHTML = `
         <div onclick="event.stopPropagation()" style="position:relative; max-width:92vw; max-height:85vh; text-align:center;">
-            <button onclick="document.getElementById('photoZoomOverlay').style.display='none'" style="position:absolute; top:-14px; right:-14px; background:#ef4444; color:#fff; border:none; width:34px; height:34px; border-radius:50%; font-weight:bold; cursor:pointer; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.5);">✕</button>
-            <img src="${photoUrl}" style="max-width:90vw; max-height:75vh; border-radius:12px; border:2px solid #38bdf8; object-fit:contain; box-shadow:0 10px 30px rgba(0,0,0,0.8);">
-            <div style="color:#f8fafc; font-weight:700; font-size:1.1rem; margin-top:10px;">${playerName || ''}</div>
+            <button onclick="document.getElementById('photoZoomOverlay').style.display='none'" style="position:absolute; top:-12px; right:-12px; background:#ef4444; color:#fff; border:none; width:34px; height:34px; border-radius:50%; font-weight:bold; cursor:pointer; font-size:1rem;">✕</button>
+            <img src="${photoUrl}" style="max-width:90vw; max-height:75vh; border-radius:12px; border:2px solid #38bdf8; object-fit:contain;">
+            <div style="color:#f8fafc; font-weight:700; font-size:1.05rem; margin-top:10px;">${playerName || ''}</div>
         </div>
     `;
     overlay.style.display = 'flex';
@@ -268,9 +292,9 @@ function renderLiveView() {
     const container = document.getElementById('appContainer');
     if (!activeMatch) {
         container.innerHTML = `
-            <div class="card" style="text-align:center; padding:40px 20px;">
+            <div class="card" style="text-align:center; padding:32px 16px;">
                 <h2>🏏 No Live Match Right Now</h2>
-                <p style="color:#94a3b8; margin-top:8px;">Check Recent Matches, Match History, or Players Stats from the tabs above.</p>
+                <p style="color:#94a3b8; margin-top:8px; font-size:0.9rem;">Check Recent Matches, Match History, or Players Stats from the tabs above.</p>
                 ${currentUser ? `<button class="btn-primary" style="margin-top:16px;" onclick="navigateAdmin('startMatch')">+ Start New Live Match</button>` : ''}
             </div>
         `;
@@ -294,7 +318,7 @@ function renderPublicLiveScoreboard() {
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
     const targetHtml = sc.currentInnings === 2
-        ? `<div style="color:#facc15; font-weight:700; margin-top:6px;">Target: ${sc.innings1.runs + 1} | Need ${Math.max(0, (sc.innings1.runs + 1) - inn.runs)} runs in ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
+        ? `<div style="color:#facc15; font-weight:700; font-size:0.9rem; margin-top:6px;">Target: ${sc.innings1.runs + 1} | Need ${Math.max(0, (sc.innings1.runs + 1) - inn.runs)} runs in ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
         : '';
 
     const recentBalls = (inn.ballsHistory || []).slice(-12).map(b => {
@@ -307,41 +331,41 @@ function renderPublicLiveScoreboard() {
     }).join('');
 
     const takeControlBtn = currentUser
-        ? `<button class="btn-warning btn-sm" onclick="takeOverScoring()">⚡ Take Over Scoring</button>`
+        ? `<button class="btn-warning btn-sm" onclick="takeOverScoring()">⚡ Take Over</button>`
         : '';
 
     container.innerHTML = `
         <div class="score-banner">
             <div class="row-between">
-                <span class="badge badge-live">● LIVE (Auto-Sync 1s)</span>
+                <span class="badge badge-live">● LIVE</span>
                 ${takeControlBtn}
             </div>
-            <h2 style="margin-top:8px;">${activeMatch.team1_name} vs ${activeMatch.team2_name}</h2>
-            ${sc.tossText ? `<p style="font-size:0.82rem; color:#94a3b8; margin-top:2px;">🪙 ${sc.tossText}</p>` : ''}
-            <div style="font-size:2.2rem; font-weight:800; margin:8px 0;">
-                ${inn.battingTeam}: ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
+            <h2 style="margin-top:6px; font-size:1.15rem;">${activeMatch.team1_name} vs ${activeMatch.team2_name}</h2>
+            ${sc.tossText ? `<p style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">🪙 ${sc.tossText}</p>` : ''}
+            <div style="font-size:1.85rem; font-weight:800; margin:6px 0;">
+                ${inn.battingTeam}: ${inn.runs}/${inn.wickets} <span style="font-size:1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
             </div>
             ${targetHtml}
-            <div class="balls-strip" style="margin-top:12px;">${recentBalls || '<span style="color:#64748b;">Match just started</span>'}</div>
+            <div class="balls-strip" style="margin-top:10px;">${recentBalls || '<span style="color:#64748b; font-size:0.85rem;">Match just started</span>'}</div>
         </div>
 
         <div class="card">
-            <h3>🏏 Crease & Current Bowler</h3>
-            <table class="stats-table" style="margin-top:10px;">
+            <h3 style="font-size:1rem;">🏏 Crease & Bowler</h3>
+            <table class="compact-table" style="margin-top:8px;">
                 <thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr></thead>
                 <tbody>
-                    ${striker ? `<tr style="background:rgba(56,189,248,0.1);"><td style="display:flex; align-items:center; gap:8px;">${renderPlayerAvatarHtml(striker.id, striker.name, 26)}<strong>${striker.name} *</strong></td><td><strong>${striker.runs}</strong></td><td>${striker.balls}</td><td>${striker.fours}</td><td>${striker.sixes}</td><td>${striker.balls > 0 ? ((striker.runs / striker.balls) * 100).toFixed(1) : '0.0'}</td></tr>` : ''}
-                    ${nonStriker ? `<tr><td style="display:flex; align-items:center; gap:8px;">${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 26)}<span>${nonStriker.name}</span></td><td>${nonStriker.runs}</td><td>${nonStriker.balls}</td><td>${nonStriker.fours}</td><td>${nonStriker.sixes}</td><td>${nonStriker.balls > 0 ? ((nonStriker.runs / nonStriker.balls) * 100).toFixed(1) : '0.0'}</td></tr>` : ''}
+                    ${striker ? `<tr style="background:rgba(56,189,248,0.1);"><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(striker.id, striker.name, 24)}<strong>${striker.name}*</strong></td><td><strong>${striker.runs}</strong></td><td>${striker.balls}</td><td>${striker.fours}</td><td>${striker.sixes}</td><td>${striker.balls > 0 ? ((striker.runs / striker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
+                    ${nonStriker ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 24)}<span>${nonStriker.name}</span></td><td>${nonStriker.runs}</td><td>${nonStriker.balls}</td><td>${nonStriker.fours}</td><td>${nonStriker.sixes}</td><td>${nonStriker.balls > 0 ? ((nonStriker.runs / nonStriker.balls) * 100).toFixed(0) : '0'}</td></tr>` : ''}
                 </tbody>
             </table>
 
-            <table class="stats-table" style="margin-top:14px;">
+            <table class="compact-table" style="margin-top:12px;">
                 <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
                 <tbody>
-                    ${bowler ? `<tr><td style="display:flex; align-items:center; gap:8px;">${renderPlayerAvatarHtml(bowler.id, bowler.name, 26)}<strong>${bowler.name}</strong></td><td>${Math.floor(bowler.balls / 6)}.${bowler.balls % 6}</td><td>${bowler.maidens}</td><td>${bowler.runs}</td><td><strong>${bowler.wickets}</strong></td><td>${bowler.balls > 0 ? (bowler.runs / (bowler.balls / 6)).toFixed(2) : '0.00'}</td></tr>` : ''}
+                    ${bowler ? `<tr><td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bowler.id, bowler.name, 24)}<strong>${bowler.name}</strong></td><td>${Math.floor(bowler.balls / 6)}.${bowler.balls % 6}</td><td>${bowler.maidens}</td><td>${bowler.runs}</td><td><strong>${bowler.wickets}</strong></td><td>${bowler.balls > 0 ? (bowler.runs / (bowler.balls / 6)).toFixed(1) : '0.0'}</td></tr>` : ''}
                 </tbody>
             </table>
-            <div style="margin-top:14px; text-align:right;">
+            <div style="margin-top:12px; text-align:right;">
                 <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${activeMatch.id}')">📋 Full Scorecard</button>
             </div>
         </div>
@@ -356,7 +380,7 @@ async function takeOverScoring() {
 }
 
 // ==========================================
-// 7. START LIVE MATCH SETUP (TOSS + COMMON & GUEST PLAYERS)
+// 7. START LIVE MATCH SETUP (INSTANT AUTO-SELECT, NO +ADD BUTTON, RESPONSIVE)
 // ==========================================
 function renderStartMatchView() {
     if (!currentUser) return goHome();
@@ -364,10 +388,10 @@ function renderStartMatchView() {
 
     container.innerHTML = `
         <div class="card">
-            <h2>🏏 Start New Live Match</h2>
-            <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:14px;">Enter team names, toss details, and select registered, common, or guest players.</p>
+            <h2 style="font-size:1.2rem;">🏏 Start New Live Match</h2>
+            <p style="color:#94a3b8; font-size:0.82rem; margin-bottom:12px;">Select player from dropdown to add immediately (Common & Guest supported).</p>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="resp-grid-2">
                 <div>
                     <label>Team 1 Name *</label>
                     <input type="text" id="t1Name" class="input-field" placeholder="e.g. Raipur Eleven" oninput="updateTossDropdowns()">
@@ -378,10 +402,10 @@ function renderStartMatchView() {
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:12px;">
+            <div class="resp-grid-3" style="margin-top:10px;">
                 <div>
                     <label>Total Overs *</label>
-                    <input type="number" id="matchOvers" class="input-field" placeholder="e.g. 6" value="6" min="1" max="50">
+                    <input type="number" id="matchOvers" class="input-field" placeholder="6" value="6" min="1" max="50">
                 </div>
                 <div>
                     <label>Toss Won By</label>
@@ -399,45 +423,37 @@ function renderStartMatchView() {
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:18px;">
-                <div style="background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
-                    <h4 style="color:#38bdf8; margin-bottom:8px;">Team 1 Squad (<span id="t1Count">0</span>)</h4>
-                    <label style="font-size:0.8rem; color:#94a3b8;">Add Registered / Common Player:</label>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
-                        <select id="regPlayerSelect1" class="input-field" style="flex:1;">
-                            <option value="">-- Choose Player --</option>
-                            ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                        </select>
-                        <button type="button" class="btn-primary btn-sm" onclick="addRegPlayerToSetup(1)">+ Add</button>
-                    </div>
-                    <label style="font-size:0.8rem; color:#94a3b8; display:block; margin-top:10px;">Or Add Guest Player:</label>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
-                        <input type="text" id="guestInput1" class="input-field" placeholder="Guest player name" style="flex:1;">
+            <div class="resp-grid-2" style="margin-top:14px;">
+                <!-- TEAM 1 -->
+                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
+                    <h4 style="color:#38bdf8; margin-bottom:6px; font-size:0.95rem;">Team 1 Squad (<span id="t1Count">0</span>)</h4>
+                    <select id="regPlayerSelect1" class="input-field" onchange="addRegPlayerToSetup(1)" style="width:100%;">
+                        <option value="">+ Select Player to Add...</option>
+                        ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                    </select>
+                    <div style="display:flex; gap:6px; margin-top:8px;">
+                        <input type="text" id="guestInput1" class="input-field" placeholder="Guest player name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addGuestPlayerToSetup(1);}">
                         <button type="button" class="btn-secondary btn-sm" onclick="addGuestPlayerToSetup(1)">+ Guest</button>
                     </div>
-                    <div id="setupSquadList1" style="margin-top:10px; display:flex; flex-direction:column; gap:5px; max-height:180px; overflow-y:auto;"></div>
+                    <div id="setupSquadList1" style="margin-top:8px; display:flex; flex-direction:column; gap:5px; max-height:170px; overflow-y:auto;"></div>
                 </div>
 
-                <div style="background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
-                    <h4 style="color:#facc15; margin-bottom:8px;">Team 2 Squad (<span id="t2Count">0</span>)</h4>
-                    <label style="font-size:0.8rem; color:#94a3b8;">Add Registered / Common Player:</label>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
-                        <select id="regPlayerSelect2" class="input-field" style="flex:1;">
-                            <option value="">-- Choose Player --</option>
-                            ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                        </select>
-                        <button type="button" class="btn-primary btn-sm" onclick="addRegPlayerToSetup(2)">+ Add</button>
-                    </div>
-                    <label style="font-size:0.8rem; color:#94a3b8; display:block; margin-top:10px;">Or Add Guest Player:</label>
-                    <div style="display:flex; gap:6px; margin-top:4px;">
-                        <input type="text" id="guestInput2" class="input-field" placeholder="Guest player name" style="flex:1;">
+                <!-- TEAM 2 -->
+                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
+                    <h4 style="color:#facc15; margin-bottom:6px; font-size:0.95rem;">Team 2 Squad (<span id="t2Count">0</span>)</h4>
+                    <select id="regPlayerSelect2" class="input-field" onchange="addRegPlayerToSetup(2)" style="width:100%;">
+                        <option value="">+ Select Player to Add...</option>
+                        ${allPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                    </select>
+                    <div style="display:flex; gap:6px; margin-top:8px;">
+                        <input type="text" id="guestInput2" class="input-field" placeholder="Guest player name" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addGuestPlayerToSetup(2);}">
                         <button type="button" class="btn-secondary btn-sm" onclick="addGuestPlayerToSetup(2)">+ Guest</button>
                     </div>
-                    <div id="setupSquadList2" style="margin-top:10px; display:flex; flex-direction:column; gap:5px; max-height:180px; overflow-y:auto;"></div>
+                    <div id="setupSquadList2" style="margin-top:8px; display:flex; flex-direction:column; gap:5px; max-height:170px; overflow-y:auto;"></div>
                 </div>
             </div>
 
-            <button class="btn-success" style="width:100%; margin-top:20px; padding:13px; font-size:1rem; font-weight:700;" onclick="createNewMatch()">
+            <button class="btn-success" style="width:100%; margin-top:16px; padding:12px; font-size:1rem; font-weight:700;" onclick="createNewMatch()">
                 🚀 Start Live Match Now
             </button>
         </div>
@@ -463,7 +479,8 @@ function addRegPlayerToSetup(teamNum) {
     const target = teamNum === 1 ? setupTeam1Squad : setupTeam2Squad;
 
     if (target.some(x => String(x.id) === String(pId))) {
-        return alert('This player is already in this team!');
+        sel.value = '';
+        return;
     }
     target.push({ id: pId, name: pName, isGuest: false });
     sel.value = '';
@@ -494,11 +511,11 @@ function removePlayerFromSetup(teamNum, index) {
 function renderSetupSquadLists() {
     const renderList = (arr, otherArr, teamNum) => arr.map((p, idx) => {
         const isCommon = otherArr.some(o => String(o.id) === String(p.id) || o.name.toLowerCase() === p.name.toLowerCase());
-        const commonTag = isCommon ? `<span style="color:#facc15; font-size:0.75rem; font-weight:700;"> (Common)</span>` : '';
+        const commonTag = isCommon ? `<span style="color:#facc15; font-size:0.72rem; font-weight:700;"> (Common)</span>` : '';
         return `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:6px 10px; border-radius:6px; font-size:0.85rem;">
-                <span style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(p.id, p.name, 22)} ${idx + 1}. ${p.name}${commonTag}</span>
-                <button type="button" onclick="removePlayerFromSetup(${teamNum}, ${idx})" style="background:transparent; border:none; color:#f87171; cursor:pointer; font-weight:bold;">✕</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:5px 8px; border-radius:6px; font-size:0.82rem;">
+                <span style="display:flex; align-items:center; gap:6px; overflow:hidden;">${renderPlayerAvatarHtml(p.id, p.name, 20)} <span style="truncate">${idx + 1}. ${p.name}${commonTag}</span></span>
+                <button type="button" onclick="removePlayerFromSetup(${teamNum}, ${idx})" style="background:transparent; border:none; color:#f87171; cursor:pointer; font-weight:bold; padding:0 4px;">✕</button>
             </div>
         `;
     }).join('');
@@ -508,8 +525,8 @@ function renderSetupSquadLists() {
     const c1 = document.getElementById('t1Count');
     const c2 = document.getElementById('t2Count');
 
-    if (l1) l1.innerHTML = renderList(setupTeam1Squad, setupTeam2Squad, 1) || '<span style="color:#64748b; font-size:0.8rem;">No players added yet</span>';
-    if (l2) l2.innerHTML = renderList(setupTeam2Squad, setupTeam1Squad, 2) || '<span style="color:#64748b; font-size:0.8rem;">No players added yet</span>';
+    if (l1) l1.innerHTML = renderList(setupTeam1Squad, setupTeam2Squad, 1) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
+    if (l2) l2.innerHTML = renderList(setupTeam2Squad, setupTeam1Squad, 2) || '<span style="color:#64748b; font-size:0.78rem;">No players selected</span>';
     if (c1) c1.textContent = setupTeam1Squad.length;
     if (c2) c2.textContent = setupTeam2Squad.length;
 }
@@ -541,7 +558,7 @@ async function createNewMatch() {
 
     const scorecard = {
         currentInnings: 1,
-        overs: overs,
+        total_overs: overs,
         activeScorerId: currentUser.id,
         tossText: tossText,
         team1Squad: batFirstSquad,
@@ -561,6 +578,7 @@ async function createNewMatch() {
     const { data, error } = await sb.from('matches').insert([{
         team1_name: batFirstTeam,
         team2_name: bowlFirstTeam,
+        total_overs: overs,
         status: 'live',
         scorecard: scorecard
     }]).select().single();
@@ -586,7 +604,7 @@ function undoLastBall() {
 }
 
 // ==========================================
-// 8. BALL-BY-BALL LIVE SCORING ENGINE
+// 8. BALL-BY-BALL LIVE SCORING ENGINE (MOBILE & LAPTOP FIT)
 // ==========================================
 function getCurrentInnings() {
     return activeMatch.scorecard.currentInnings === 1
@@ -603,10 +621,10 @@ function renderLiveScoringScreen() {
     const bowler = inn.bowlers.find(b => b.id === inn.currentBowlerId);
 
     const targetBanner = activeMatch.scorecard.currentInnings === 2
-        ? `<div style="color:#facc15; font-weight:600; margin-top:4px;">Target: ${activeMatch.scorecard.innings1.runs + 1} | Need ${Math.max(0, (activeMatch.scorecard.innings1.runs + 1) - inn.runs)} off ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
+        ? `<div style="color:#facc15; font-weight:600; font-size:0.85rem; margin-top:4px;">Target: ${activeMatch.scorecard.innings1.runs + 1} | Need ${Math.max(0, (activeMatch.scorecard.innings1.runs + 1) - inn.runs)} off ${Math.max(0, (totalOvers * 6) - inn.legalBalls)} balls</div>`
         : '';
 
-    const recentBalls = (inn.ballsHistory || []).slice(-12).map(b => {
+    const recentBalls = (inn.ballsHistory || []).slice(-10).map(b => {
         let cls = 'ball-pill';
         if (b === '4') cls += ' ball-4';
         else if (b === '6') cls += ' ball-6';
@@ -617,71 +635,71 @@ function renderLiveScoringScreen() {
 
     document.getElementById('appContainer').innerHTML = `
         <div class="score-banner">
-            <div class="row-between">
-                <span class="badge badge-live">● SCORING LIVE</span>
-                <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                    <button class="btn-secondary btn-sm" onclick="openEditTeamsModal()">👥 Edit Teams</button>
-                    <button class="btn-secondary btn-sm" onclick="openBabyOverModal()">🍼 Baby Over</button>
-                    <button class="btn-danger btn-sm" onclick="openMatchEndOptions()">🏁 End / Abandon</button>
+            <div class="row-between" style="flex-wrap:wrap; gap:6px;">
+                <span class="badge badge-live">● LIVE</span>
+                <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                    <button class="btn-secondary btn-sm" onclick="openEditTeamsModal()">👥 Teams</button>
+                    <button class="btn-secondary btn-sm" onclick="openBabyOverModal()">🍼 Overs</button>
+                    <button class="btn-danger btn-sm" onclick="openMatchEndOptions()">🏁 End</button>
                 </div>
             </div>
-            <h2 style="margin-top:8px;">${inn.battingTeam} vs ${inn.bowlingTeam}</h2>
-            <div style="font-size:2.1rem; font-weight:800; margin:6px 0;">
-                ${inn.runs}/${inn.wickets} <span style="font-size:1.1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
+            <h2 style="margin-top:6px; font-size:1.1rem;">${inn.battingTeam} vs ${inn.bowlingTeam}</h2>
+            <div style="font-size:1.85rem; font-weight:800; margin:4px 0;">
+                ${inn.runs}/${inn.wickets} <span style="font-size:1rem; color:#94a3b8;">(${oversText} / ${totalOvers} Ov)</span>
             </div>
             ${targetBanner}
-            <div class="balls-strip" style="margin-top:10px;">${recentBalls}</div>
+            <div class="balls-strip" style="margin-top:8px;">${recentBalls}</div>
         </div>
 
         <div class="card">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #38bdf8;">
+            <div class="resp-grid-crease">
+                <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #38bdf8;">
                     <div class="row-between">
-                        <span style="font-size:0.8rem; color:#38bdf8;">STRIKER *</span>
-                        <button class="btn-secondary btn-sm" onclick="openSelectPlayerModal('striker')">Change</button>
+                        <span style="font-size:0.75rem; color:#38bdf8; font-weight:700;">STRIKER *</span>
+                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('striker')">Change</button>
                     </div>
-                    <div style="font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px;">
-                        ${striker ? `${renderPlayerAvatarHtml(striker.id, striker.name, 26)} <span>${striker.name} (${striker.runs} off ${striker.balls})</span>` : '⚠️ Select Striker'}
+                    <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
+                        ${striker ? `${renderPlayerAvatarHtml(striker.id, striker.name, 22)} <span>${striker.name} (${striker.runs}/${striker.balls})</span>` : '⚠️ Select Striker'}
                     </div>
                 </div>
-                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
+                <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #334155;">
                     <div class="row-between">
-                        <span style="font-size:0.8rem; color:#94a3b8;">NON-STRIKER</span>
-                        <button class="btn-secondary btn-sm" onclick="openSelectPlayerModal('non_striker')">Change</button>
+                        <span style="font-size:0.75rem; color:#94a3b8; font-weight:700;">NON-STRIKER</span>
+                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('non_striker')">Change</button>
                     </div>
-                    <div style="font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px;">
-                        ${nonStriker ? `${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 26)} <span>${nonStriker.name} (${nonStriker.runs} off ${nonStriker.balls})</span>` : '⚠️ Select Non-Striker'}
+                    <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
+                        ${nonStriker ? `${renderPlayerAvatarHtml(nonStriker.id, nonStriker.name, 22)} <span>${nonStriker.name} (${nonStriker.runs}/${nonStriker.balls})</span>` : '⚠️ Select Non-Striker'}
                     </div>
                 </div>
             </div>
 
-            <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #facc15; margin-top:10px;">
-                <div class="row-between">
-                    <span style="font-size:0.8rem; color:#facc15;">CURRENT BOWLER</span>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn-secondary btn-sm" onclick="swapStrike()">⇄ Swap Strike</button>
-                        <button class="btn-secondary btn-sm" onclick="openSelectPlayerModal('bowler')">Change Bowler</button>
+            <div style="background:#0f172a; padding:8px; border-radius:8px; border:1px solid #facc15; margin-top:8px;">
+                <div class="row-between" style="flex-wrap:wrap; gap:4px;">
+                    <span style="font-size:0.75rem; color:#facc15; font-weight:700;">BOWLER</span>
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="swapStrike()">⇄ Swap</button>
+                        <button class="btn-secondary btn-sm" style="padding:3px 7px; font-size:0.75rem;" onclick="openSelectPlayerModal('bowler')">Change</button>
                     </div>
                 </div>
-                <div style="font-weight:700; margin-top:6px; display:flex; align-items:center; gap:8px;">
-                    ${bowler ? `${renderPlayerAvatarHtml(bowler.id, bowler.name, 26)} <span>${bowler.name} — ${Math.floor(bowler.balls / 6)}.${bowler.balls % 6} Ov, ${bowler.runs} R, ${bowler.wickets} W</span>` : '⚠️ Select Bowler'}
+                <div style="font-weight:700; font-size:0.88rem; margin-top:5px; display:flex; align-items:center; gap:6px;">
+                    ${bowler ? `${renderPlayerAvatarHtml(bowler.id, bowler.name, 22)} <span>${bowler.name} (${Math.floor(bowler.balls / 6)}.${bowler.balls % 6} Ov, ${bowler.runs}R, ${bowler.wickets}W)</span>` : '⚠️ Select Bowler'}
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-top:16px;">
-                <button class="btn-secondary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(0)">0</button>
-                <button class="btn-secondary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(1)">1</button>
-                <button class="btn-secondary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(2)">2</button>
-                <button class="btn-secondary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(3)">3</button>
-                <button class="btn-primary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(4)">4</button>
-                <button class="btn-primary" style="padding:14px; font-size:1.1rem; font-weight:700;" onclick="recordLegalBall(6)">6</button>
-                <button class="btn-warning" style="padding:14px; font-weight:700; color:#000;" onclick="openExtraModal('WD')">WD (Re-ball)</button>
-                <button class="btn-warning" style="padding:14px; font-weight:700; color:#000;" onclick="openExtraModal('NB')">NB (Re-ball)</button>
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-top:12px;">
+                <button class="btn-secondary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(0)">0</button>
+                <button class="btn-secondary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(1)">1</button>
+                <button class="btn-secondary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(2)">2</button>
+                <button class="btn-secondary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(3)">3</button>
+                <button class="btn-primary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(4)">4</button>
+                <button class="btn-primary" style="padding:12px 4px; font-size:1.05rem; font-weight:700;" onclick="recordLegalBall(6)">6</button>
+                <button class="btn-warning" style="padding:12px 4px; font-size:0.85rem; font-weight:700; color:#000;" onclick="openExtraModal('WD')">WD</button>
+                <button class="btn-warning" style="padding:12px 4px; font-size:0.85rem; font-weight:700; color:#000;" onclick="openExtraModal('NB')">NB</button>
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
-                <button class="btn-danger" style="padding:14px; font-size:1.05rem; font-weight:800;" onclick="openWicketModal()">⚡ WICKET</button>
-                <button class="btn-secondary" style="padding:14px; font-weight:700;" onclick="undoLastBall()">↩ Undo Last Ball</button>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px;">
+                <button class="btn-danger" style="padding:12px; font-size:1rem; font-weight:800;" onclick="openWicketModal()">⚡ WICKET</button>
+                <button class="btn-secondary" style="padding:12px; font-size:0.95rem; font-weight:700;" onclick="undoLastBall()">↩ Undo</button>
             </div>
         </div>
     `;
@@ -744,11 +762,11 @@ function openExtraModal(type) {
     if (!validateCreaseReady()) return;
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
-            <h3>${type === 'WD' ? 'Wide Ball (No Extra 1 Run)' : 'No Ball (No Extra 1 Run)'}</h3>
+            <h3>${type === 'WD' ? 'Wide Ball (Re-ball)' : 'No Ball (Re-ball)'}</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
-        <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Gully Rule: Only runs scored off this delivery will be added, and the ball will be re-bowled.</p>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:12px;">
+        <p style="color:#94a3b8; font-size:0.85rem; margin:8px 0;">Gully Rule: No extra 1 run; only scored runs added & ball re-bowled.</p>
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:10px;">
             <button class="btn-secondary" style="padding:12px;" onclick="recordExtraBall('${type}', 0)">${type} + 0</button>
             <button class="btn-secondary" style="padding:12px;" onclick="recordExtraBall('${type}', 1)">${type} + 1</button>
             <button class="btn-secondary" style="padding:12px;" onclick="recordExtraBall('${type}', 2)">${type} + 2</button>
@@ -824,11 +842,11 @@ function openRunOutOptions() {
         <div style="margin-bottom: 14px;">
             <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">1. कौन आउट हुआ? (Who is Out?)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem;">
                     <input type="radio" name="roVictim" value="striker" checked>
                     <span><strong>Striker:</strong> ${striker ? striker.name : 'Striker'}</span>
                 </label>
-                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem;">
                     <input type="radio" name="roVictim" value="non_striker">
                     <span><strong>Non-Striker:</strong> ${nonStriker ? nonStriker.name : 'Non-Striker'}</span>
                 </label>
@@ -837,13 +855,13 @@ function openRunOutOptions() {
         <div style="margin-bottom: 16px;">
             <label style="display:block; margin-bottom:6px; font-weight:600; color:#facc15;">2. कितने रन पूरे हुए? (Completed Runs)</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center; font-size:0.85rem;">
                     <input type="radio" name="roRuns" value="0" checked> <strong>0 Run</strong>
                 </label>
-                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center; font-size:0.85rem;">
                     <input type="radio" name="roRuns" value="1"> <strong>1 Run</strong>
                 </label>
-                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center;">
+                <label style="background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155; cursor:pointer; text-align:center; font-size:0.85rem;">
                     <input type="radio" name="roRuns" value="2"> <strong>2 Runs</strong>
                 </label>
             </div>
@@ -1039,14 +1057,15 @@ function openBabyOverModal() {
 async function updateMatchOvers() {
     const val = parseInt(document.getElementById('newOversInput').value, 10);
     if (!val || val < 1) return;
-    activeMatch.scorecard.overs = val;
-    await sb.from('matches').update({ scorecard: activeMatch.scorecard }).eq('id', activeMatch.id);
+    activeMatch.total_overs = val;
+    activeMatch.scorecard.total_overs = val;
+    await sb.from('matches').update({ total_overs: val, scorecard: activeMatch.scorecard }).eq('id', activeMatch.id);
     closeModal('popupModal');
     renderLiveScoringScreen();
 }
 
 // ==========================================
-// 10. PLAYER SELECTION & LIVE TEAM EDITING (COMMON + GUEST SUPPORT)
+// 10. PLAYER SELECTION & LIVE TEAM EDITING (AUTO-SELECT + COMMON + GUEST)
 // ==========================================
 function openSelectPlayerModal(role) {
     const inn = getCurrentInnings();
@@ -1077,13 +1096,13 @@ function openSelectPlayerModal(role) {
             <h3>Select ${role === 'striker' ? 'Striker' : (role === 'non_striker' ? 'Non-Striker' : 'Bowler')}</h3>
             <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; margin-top:12px;">
+        <div style="display:flex; flex-direction:column; gap:6px; max-height:250px; overflow-y:auto; margin-top:10px;">
             ${listHtml || '<p style="color:#94a3b8;">No available players in squad.</p>'}
         </div>
-        <div style="margin-top:12px; border-top:1px solid #334155; padding-top:10px;">
+        <div style="margin-top:10px; border-top:1px solid #334155; padding-top:10px;">
             <label style="font-size:0.8rem; color:#94a3b8;">Quick Add Guest Player:</label>
             <div style="display:flex; gap:6px; margin-top:4px;">
-                <input type="text" id="quickGuestName" class="input-field" placeholder="Guest player name...">
+                <input type="text" id="quickGuestName" class="input-field" placeholder="Guest player name..." style="flex:1;">
                 <button class="btn-primary btn-sm" onclick="addQuickGuestAndAssign('${role}')">+ Add</button>
             </div>
         </div>
@@ -1229,8 +1248,8 @@ function renderRecentMatchesView() {
     const recent = allMatches.filter(m => m.status === 'completed').slice(0, 5);
     container.innerHTML = `
         <div class="card">
-            <h2>🕒 Recent Matches (Top 5)</h2>
-            <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
+            <h2 style="font-size:1.15rem;">🕒 Recent Matches (Top 5)</h2>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
                 ${recent.length === 0 ? '<p style="color:#94a3b8;">No completed matches yet.</p>' : recent.map(m => renderMatchCardItem(m)).join('')}
             </div>
         </div>
@@ -1242,14 +1261,14 @@ function renderMatchHistoryView() {
     const completed = allMatches.filter(m => m.status === 'completed');
     container.innerHTML = `
         <div class="card">
-            <div class="row-between" style="flex-wrap:wrap; gap:10px;">
-                <h2>📜 All Match History (${completed.length})</h2>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="date" id="historyDateFilter" class="input-field" onchange="filterMatchesByDate()">
+            <div class="row-between" style="flex-wrap:wrap; gap:8px;">
+                <h2 style="font-size:1.15rem;">📜 Match History (${completed.length})</h2>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="date" id="historyDateFilter" class="input-field" style="padding:6px;" onchange="filterMatchesByDate()">
                     <button class="btn-secondary btn-sm" onclick="resetHistoryDateFilter()">All</button>
                 </div>
             </div>
-            <div id="historyMatchesList" style="display:flex; flex-direction:column; gap:10px; margin-top:14px;">
+            <div id="historyMatchesList" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
                 ${completed.length === 0 ? '<p style="color:#94a3b8;">No matches found.</p>' : completed.map(m => renderMatchCardItem(m)).join('')}
             </div>
         </div>
@@ -1275,21 +1294,21 @@ function renderMatchCardItem(m) {
     const inn2 = sc.innings2 || { runs: 0, wickets: 0 };
     const dateStr = new Date(m.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const isSuperAdmin = currentAdminProfile && currentAdminProfile.role === 'super_admin';
-    const deleteBtn = isSuperAdmin ? `<button class="btn-danger btn-sm" onclick="deleteMatchById('${m.id}')">🗑️ Delete</button>` : '';
+    const deleteBtn = isSuperAdmin ? `<button class="btn-danger btn-sm" onclick="deleteMatchById('${m.id}')">🗑️</button>` : '';
 
     return `
-        <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+        <div style="background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
             <div class="row-between">
-                <span style="font-size:0.8rem; color:#94a3b8;">📅 ${dateStr}</span>
+                <span style="font-size:0.78rem; color:#94a3b8;">📅 ${dateStr}</span>
                 <div style="display:flex; gap:6px;">
                     <button class="btn-secondary btn-sm" onclick="openMatchScorecardModal('${m.id}')">Scorecard</button>
                     ${deleteBtn}
                 </div>
             </div>
-            <div style="font-weight:700; font-size:1.05rem; margin-top:6px;">
+            <div style="font-weight:700; font-size:0.98rem; margin-top:6px;">
                 ${m.team1_name} (${inn1.runs}/${inn1.wickets}) vs ${m.team2_name} (${inn2.runs}/${inn2.wickets})
             </div>
-            <div style="color:#4ade80; font-weight:600; font-size:0.9rem; margin-top:4px;">🏆 ${m.result_text || 'Completed'}</div>
+            <div style="color:#4ade80; font-weight:600; font-size:0.85rem; margin-top:4px;">🏆 ${m.result_text || 'Completed'}</div>
         </div>
     `;
 }
@@ -1310,19 +1329,19 @@ function openMatchScorecardModal(matchId) {
         if (!inn) return '';
         const overs = `${Math.floor(inn.legalBalls / 6)}.${inn.legalBalls % 6}`;
         return `
-            <div style="margin-top:16px; background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
+            <div style="margin-top:12px; background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
                 <div class="row-between">
-                    <h4>${title}: ${inn.battingTeam}</h4>
-                    <strong>${inn.runs}/${inn.wickets} (${overs} Ov)</strong>
+                    <h4 style="font-size:0.95rem;">${title}: ${inn.battingTeam}</h4>
+                    <strong style="font-size:0.95rem;">${inn.runs}/${inn.wickets} (${overs})</strong>
                 </div>
-                <div class="stats-table-wrap" style="margin-top:8px;">
-                    <table class="stats-table">
-                        <thead><tr><th>Batter</th><th>Status</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
+                <div style="margin-top:6px; overflow-x:auto;">
+                    <table class="compact-table">
+                        <thead><tr><th>Batter</th><th>Out</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
                         <tbody>
                             ${(inn.batters || []).map(b => `
                                 <tr>
-                                    <td style="display:flex; align-items:center; gap:8px;">${renderPlayerAvatarHtml(b.id, b.name, 26)}<strong>${b.name}</strong></td>
-                                    <td style="font-size:0.8rem; color:#94a3b8;">${b.isOut ? b.dismissal : 'not out'}</td>
+                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(b.id, b.name, 22)}<strong>${b.name}</strong></td>
+                                    <td style="font-size:0.75rem; color:#94a3b8;">${b.isOut ? b.dismissal : 'not out'}</td>
                                     <td><strong>${b.runs}</strong></td>
                                     <td>${b.balls}</td>
                                     <td>${b.fours}</td>
@@ -1332,18 +1351,18 @@ function openMatchScorecardModal(matchId) {
                         </tbody>
                     </table>
                 </div>
-                <div class="stats-table-wrap" style="margin-top:12px;">
-                    <table class="stats-table">
+                <div style="margin-top:10px; overflow-x:auto;">
+                    <table class="compact-table">
                         <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
                         <tbody>
                             ${(inn.bowlers || []).map(bw => `
                                 <tr>
-                                    <td style="display:flex; align-items:center; gap:8px;">${renderPlayerAvatarHtml(bw.id, bw.name, 26)}<span>${bw.name}</span></td>
+                                    <td style="display:flex; align-items:center; gap:6px;">${renderPlayerAvatarHtml(bw.id, bw.name, 22)}<span>${bw.name}</span></td>
                                     <td>${Math.floor(bw.balls / 6)}.${bw.balls % 6}</td>
                                     <td>${bw.maidens}</td>
                                     <td>${bw.runs}</td>
                                     <td><strong>${bw.wickets}</strong></td>
-                                    <td>${bw.balls > 0 ? (bw.runs / (bw.balls / 6)).toFixed(2) : '0.00'}</td>
+                                    <td>${bw.balls > 0 ? (bw.runs / (bw.balls / 6)).toFixed(1) : '0.0'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1353,14 +1372,14 @@ function openMatchScorecardModal(matchId) {
         `;
     };
 
-    const liveBadge = match.status === 'live' ? `<span class="badge badge-live" style="margin-right:8px;">● LIVE</span>` : '';
+    const liveBadge = match.status === 'live' ? `<span class="badge badge-live" style="margin-right:6px;">● LIVE</span>` : '';
     document.getElementById('popupContent').innerHTML = `
         <div class="row-between">
-            <h3>${liveBadge}${match.team1_name} vs ${match.team2_name}</h3>
-            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕ Close</button>
+            <h3 style="font-size:1.05rem;">${liveBadge}${match.team1_name} vs ${match.team2_name}</h3>
+            <button class="btn-secondary btn-sm" onclick="closeModal('popupModal')">✕</button>
         </div>
-        <span style="color:#94a3b8; font-size:0.8rem;">📅 Played on: ${new Date(match.created_at).toLocaleDateString()}</span>
-        ${match.result_text ? `<p style="color:#4ade80; font-weight:700; margin-top:4px;">🏆 ${match.result_text}</p>` : ''}
+        <span style="color:#94a3b8; font-size:0.78rem;">📅 ${new Date(match.created_at).toLocaleDateString()}</span>
+        ${match.result_text ? `<p style="color:#4ade80; font-weight:700; font-size:0.9rem; margin-top:4px;">🏆 ${match.result_text}</p>` : ''}
         ${renderInningsBlock(match.scorecard.innings1, '1st Innings')}
         ${renderInningsBlock(match.scorecard.innings2, '2nd Innings')}
     `;
@@ -1368,7 +1387,7 @@ function openMatchScorecardModal(matchId) {
 }
 
 // ==========================================
-// 12. CAREER PLAYER STATS (WITH CLICK-TO-ZOOM PHOTO)
+// 12. CAREER PLAYER STATS (MOBILE-FIT + CLICK-TO-ZOOM PHOTO)
 // ==========================================
 function renderPlayerStatsView() {
     const container = document.getElementById('appContainer');
@@ -1420,18 +1439,18 @@ function renderPlayerStatsView() {
 
     const sortedStats = Object.values(statsMap).sort((a, b) => b.runs - a.runs || b.wickets - a.wickets);
     const rows = sortedStats.map(s => {
-        const sr = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(1) : '0.0';
-        const econ = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(2) : '0.00';
-        const avatar = renderPlayerAvatarHtml(s.id, s.name, 36);
-        const editCol = currentUser ? `<td><button class="btn-secondary btn-sm" onclick="openEditPlayerModal('${s.id}')">✏️ Edit</button></td>` : '';
+        const sr = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(0) : '0';
+        const econ = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(1) : '0.0';
+        const avatar = renderPlayerAvatarHtml(s.id, s.name, 30);
+        const editCol = currentUser ? `<td><button class="btn-secondary btn-sm" style="padding:3px 6px;" onclick="openEditPlayerModal('${s.id}')">✏️</button></td>` : '';
 
         return `
             <tr>
-                <td style="display:flex; align-items:center; gap:8px;">
+                <td style="display:flex; align-items:center; gap:6px;">
                     ${avatar}
                     <div>
-                        <strong>${s.name}</strong> ${s.nickname ? `<span style="color:#94a3b8; font-size:0.8rem;">(${s.nickname})</span>` : ''}
-                        <div style="font-size:0.75rem; color:#38bdf8;">${s.role}</div>
+                        <strong>${s.name}</strong>
+                        <div style="font-size:0.7rem; color:#38bdf8;">${s.role}</div>
                     </div>
                 </td>
                 <td>${s.matches.size}</td>
@@ -1448,11 +1467,11 @@ function renderPlayerStatsView() {
 
     container.innerHTML = `
         <div class="card">
-            <h2>📊 Career Players Stats (Verified Scorecards)</h2>
-            <div class="stats-table-wrap" style="margin-top:14px;">
-                <table class="stats-table">
+            <h2 style="font-size:1.15rem;">📊 Career Players Stats</h2>
+            <div style="margin-top:10px; overflow-x:auto;">
+                <table class="compact-table">
                     <thead>
-                        <tr><th>Player</th><th>Mat</th><th>Runs</th><th>BF</th><th>4s/6s</th><th>SR</th><th>Wkts</th><th>Econ</th>${currentUser ? '<th>Action</th>' : ''}</tr>
+                        <tr><th>Player</th><th>M</th><th>R</th><th>B</th><th>4/6</th><th>SR</th><th>W</th><th>Ec</th>${currentUser ? '<th></th>' : ''}</tr>
                     </thead>
                     <tbody>${rows || '<tr><td colspan="9">No players registered yet.</td></tr>'}</tbody>
                 </table>
@@ -1470,12 +1489,12 @@ function renderManagePlayersView() {
     const isSuperAdmin = currentAdminProfile && currentAdminProfile.role === 'super_admin';
 
     const playerCards = allPlayers.map(p => `
-        <div class="row-between" style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                ${renderPlayerAvatarHtml(p.id, p.name, 40)}
+        <div class="row-between" style="background:#0f172a; padding:8px 10px; border-radius:8px; border:1px solid #334155;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                ${renderPlayerAvatarHtml(p.id, p.name, 34)}
                 <div>
-                    <strong>${p.name}</strong> ${p.nickname ? `(${p.nickname})` : ''}
-                    <div style="font-size:0.8rem; color:#94a3b8;">${p.role || 'All-Rounder'}</div>
+                    <strong style="font-size:0.92rem;">${p.name}</strong> ${p.nickname ? `<span style="font-size:0.8rem; color:#94a3b8;">(${p.nickname})</span>` : ''}
+                    <div style="font-size:0.75rem; color:#94a3b8;">${p.role || 'All-Rounder'}</div>
                 </div>
             </div>
             <div style="display:flex; gap:6px;">
@@ -1487,8 +1506,8 @@ function renderManagePlayersView() {
 
     container.innerHTML = `
         <div class="card">
-            <h2>👤 Add & Manage Players</h2>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
+            <h2 style="font-size:1.15rem;">👤 Add & Manage Players</h2>
+            <div class="resp-grid-2" style="margin-top:10px;">
                 <input type="text" id="newPlayerName" class="input-field" placeholder="Full Name *">
                 <input type="text" id="newPlayerNick" class="input-field" placeholder="Nickname">
                 <select id="newPlayerRole" class="input-field">
@@ -1500,7 +1519,7 @@ function renderManagePlayersView() {
                 <input type="file" id="newPlayerPhoto" accept="image/*" class="input-field">
             </div>
             <button class="btn-primary" style="margin-top:10px; width:100%;" onclick="addNewPlayer()">+ Add Player</button>
-            <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">${playerCards}</div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">${playerCards}</div>
         </div>
     `;
 }
@@ -1543,7 +1562,7 @@ function openEditPlayerModal(playerId) {
     const preview = document.getElementById('editPlayerPhotoPreview');
     preview.innerHTML = p.photo_url
         ? `<div style="display:flex; align-items:center; gap:10px;">
-               <img src="${p.photo_url}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
+               <img src="${p.photo_url}" style="width:44px; height:44px; border-radius:50%; object-fit:cover;">
                <button type="button" class="btn-danger btn-sm" onclick="removePlayerPhoto('${p.id}')">Remove Photo</button>
            </div>`
         : '<span style="font-size:0.8rem; color:#94a3b8;">No photo uploaded</span>';
@@ -1602,8 +1621,8 @@ async function renderManageAdminsView() {
 
     document.getElementById('appContainer').innerHTML = `
         <div class="card">
-            <h2>🛡️ Manage Admins (Super Admin Only)</h2>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
+            <h2 style="font-size:1.15rem;">🛡️ Manage Admins</h2>
+            <div class="resp-grid-2" style="margin-top:10px;">
                 <input type="text" id="newAdminName" class="input-field" placeholder="Admin Name">
                 <input type="email" id="newAdminEmail" class="input-field" placeholder="Email">
                 <input type="password" id="newAdminPass" class="input-field" placeholder="Password (min 6 chars)">
@@ -1613,12 +1632,12 @@ async function renderManageAdminsView() {
                 </select>
             </div>
             <button class="btn-primary" style="margin-top:10px; width:100%;" onclick="createNewAdmin()">+ Create Admin</button>
-            <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:14px;">
                 ${(admins || []).map(a => `
-                    <div class="row-between" style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155;">
-                        <div>
+                    <div class="row-between" style="background:#0f172a; padding:8px 10px; border-radius:8px; border:1px solid #334155;">
+                        <div style="font-size:0.88rem;">
                             <strong>${a.name}</strong> (${a.email})
-                            <span class="badge" style="margin-left:6px;">${a.role}</span>
+                            <span class="badge" style="margin-left:4px;">${a.role}</span>
                         </div>
                         ${a.id !== currentUser.id ? `<button class="btn-danger btn-sm" onclick="removeAdminAccess('${a.id}')">Remove</button>` : '<span style="color:#4ade80; font-size:0.8rem;">You</span>'}
                     </div>
@@ -1658,8 +1677,8 @@ function renderChangePasswordView() {
     if (!currentUser) return goHome();
     document.getElementById('appContainer').innerHTML = `
         <div class="card">
-            <h2>🔑 Change Password</h2>
-            <p style="color:#94a3b8; font-size:0.9rem; margin:8px 0;">Enter a new password (minimum 6 characters).</p>
+            <h2 style="font-size:1.15rem;">🔑 Change Password</h2>
+            <p style="color:#94a3b8; font-size:0.85rem; margin:8px 0;">Enter a new password (minimum 6 characters).</p>
             <input type="password" id="newSelfPassword" class="input-field" placeholder="New Password">
             <button class="btn-primary" style="margin-top:12px; width:100%;" onclick="updateSelfPassword()">Update Password</button>
         </div>
